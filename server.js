@@ -75,6 +75,17 @@ io.on('connection', (socket) => {
     io.emit('score-update', scores);
   });
 
+  // Handle chat messages
+  socket.on('chat-message', (data) => {
+    io.emit('chat-message', {
+      playerId: socket.id,
+      playerName: data.playerName || 'Anonymous',
+      team: data.team || '',
+      message: data.message,
+      timestamp: Date.now()
+    });
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
