@@ -10,7 +10,8 @@ const io = new Server(server, {
 });
 
 let players = {};
-let ball = { position: [0, 0.3, 0], velocity: [0, 0, 0] };
+let ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+let scores = { red: 0, blue: 0 };
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -22,7 +23,7 @@ io.on('connection', (socket) => {
     color: '#' + Math.floor(Math.random()*16777215).toString(16),
   };
   // Send current state to new player
-  socket.emit('init', { id: socket.id, players, ball });
+  socket.emit('init', { id: socket.id, players, ball, scores });
   // Notify others
   socket.broadcast.emit('player-joined', players[socket.id]);
 
@@ -50,6 +51,21 @@ io.on('connection', (socket) => {
     ball.position = data.position;
     ball.velocity = data.velocity;
     socket.broadcast.emit('ball-update', ball);
+  });
+
+  // Handle goal
+  socket.on('goal', (teamScored) => {
+    if (scores[teamScored] !== undefined) {
+      scores[teamScored]++;
+      io.emit('score-update', scores);
+      
+      // Reset ball after delay
+      setTimeout(() => {
+        ball.position = [0, 0.5, 0];
+        ball.velocity = [0, 0, 0];
+        io.emit('ball-reset', ball);
+      }, 2000);
+    }
   });
 
   // Handle disconnect
