@@ -68,6 +68,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle reset scores
+  socket.on('reset-scores', () => {
+    scores.red = 0;
+    scores.blue = 0;
+    io.emit('score-update', scores);
+  });
+
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
