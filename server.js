@@ -46,7 +46,7 @@ io.on('connection', (socket) => {
   });
 
   // Handle ball update
-  socket.on('ball-update', (data) => {
+  socketa.on('ball-update', (data) => {
     ball.position = data.position;
     ball.velocity = data.velocity;
     socket.broadcast.emit('ball-update', ball);
