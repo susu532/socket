@@ -31,7 +31,17 @@ io.on('connection', (socket) => {
     if (players[socket.id]) {
       players[socket.id].position = data.position;
       players[socket.id].rotation = data.rotation;
-      io.emit('player-move', { id: socket.id, position: data.position, rotation: data.rotation });
+      players[socket.id].name = data.name;
+      players[socket.id].team = data.team;
+      players[socket.id].color = data.color;
+      io.emit('player-move', { 
+        id: socket.id, 
+        position: data.position, 
+        rotation: data.rotation,
+        name: data.name,
+        team: data.team,
+        color: data.color
+      });
     }
   });
 
