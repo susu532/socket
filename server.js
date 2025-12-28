@@ -35,7 +35,8 @@ io.on('connection', (socket) => {
       players[socket.id].name = data.name;
       players[socket.id].team = data.team;
       players[socket.id].color = data.color;
-      io.emit('player-move', { 
+      // Use volatile emit for smoother real-time updates (drops packets if behind)
+      socket.volatile.broadcast.emit('player-move', { 
         id: socket.id, 
         position: data.position, 
         rotation: data.rotation,
@@ -50,7 +51,8 @@ io.on('connection', (socket) => {
   socket.on('ball-update', (data) => {
     ball.position = data.position;
     ball.velocity = data.velocity;
-    socket.broadcast.emit('ball-update', ball);
+    // Use volatile for smoother ball sync (prioritize newest data)
+    socket.volatile.broadcast.emit('ball-update', ball);
   });
 
   // Handle goal
