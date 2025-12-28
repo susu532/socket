@@ -34,6 +34,7 @@ io.on('connection', (socket) => {
       players[socket.id].rotation = data.rotation;
       players[socket.id].name = data.name;
       players[socket.id].team = data.team;
+      players[socket.id].skin = data.skin;
       players[socket.id].color = data.color;
       // Use volatile emit for smoother real-time updates (drops packets if behind)
       socket.volatile.broadcast.emit('player-move', { 
@@ -42,6 +43,7 @@ io.on('connection', (socket) => {
         rotation: data.rotation,
         name: data.name,
         team: data.team,
+        skin: data.skin,
         color: data.color
       });
     }
