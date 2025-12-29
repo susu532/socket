@@ -12,6 +12,7 @@ const io = new Server(server, {
 let players = {};
 let ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
 let scores = { red: 0, blue: 0 };
+let lastGoalTime = 0;
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -59,8 +60,15 @@ io.on('connection', (socket) => {
 
   // Handle goal
   socket.on('goal', (teamScored) => {
+    const now = Date.now();
+    // Debounce: Ignore goals within 3 seconds of the last one
+    if (now - lastGoalTime < 3000) {
+      return;
+    }
+
     if (scores[teamScored] !== undefined) {
       scores[teamScored]++;
+      lastGoalTime = now;
       io.emit('score-update', scores);
       
       // Reset ball after delay
