@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const server = http.createServer();
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: 'https://soccer-2025.vercel.app/',
     methods: ['GET', 'POST']
   }
 });
