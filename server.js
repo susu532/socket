@@ -95,6 +95,13 @@ io.on('connection', (socket) => {
     console.log('Player disconnected:', socket.id);
     delete players[socket.id];
     io.emit('player-left', socket.id);
+
+    // Reset game state if no players are left
+    if (Object.keys(players).length === 0) {
+      console.log('No players left. Resetting game state.');
+      ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+      scores = { red: 0, blue: 0 };
+    }
   });
 });
 
