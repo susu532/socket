@@ -25,7 +25,7 @@ io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   // Handle joining a room
-  socket.on('join-room', ({ roomId }) => {
+  socket.on('join-room', ({ roomId, model }) => {
     if (!rooms[roomId]) return; // Invalid room
 
     // Leave previous room if any
@@ -43,6 +43,7 @@ io.on('connection', (socket) => {
       position: [0, 1, 0],
       rotation: 0,
       color: '#' + Math.floor(Math.random()*16777215).toString(16),
+      model: model || 'cat',
     };
 
     // Send room state to new player
@@ -64,18 +65,26 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
       const p = rooms[roomId].players[socket.id];
+      // Update state
       p.position = data.position;
       p.rotation = data.rotation;
-      p.name = data.name;
-      p.team = data.team;
-      p.skin = data.skin;
-      p.color = data.color;
-      p.invisible = data.invisible;
-      p.giant = data.giant;
+      
+      // Only update static props if provided (initial sync or change)
+      if (data.name) p.name = data.name;
+      if (data.team) p.team = data.team;
+      if (data.model) p.model = data.model;
+      if (data.color) p.color = data.color;
+      if (data.invisible !== undefined) p.invisible = data.invisible;
+      if (data.giant !== undefined) p.giant = data.giant;
 
+      // Broadcast lightweight update
       socket.volatile.to(roomId).emit('player-move', { 
         id: socket.id, 
-        ...data
+        position: data.position,
+        rotation: data.rotation,
+        model: data.model, // Include model for sync
+        invisible: data.invisible,
+        giant: data.giant
       });
     }
   });
