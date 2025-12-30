@@ -10,110 +10,159 @@ const io = new Server(server, {
   }
 });
 
-let players = {};
-let ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
-let scores = { red: 0, blue: 0 };
-let lastGoalTime = 0;
+// Room state
+const rooms = {
+  room1: {
+    players: {},
+    ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
+    scores: { red: 0, blue: 0 },
+    lastGoalTime: 0
+  },
+  room2: {
+    players: {},
+    ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
+    scores: { red: 0, blue: 0 },
+    lastGoalTime: 0
+  },
+  room3: {
+    players: {},
+    ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
+    scores: { red: 0, blue: 0 },
+    lastGoalTime: 0
+  }
+};
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
-  // Add new player
-  players[socket.id] = {
-    id: socket.id,
-    position: [0, 1, 0],
-    rotation: 0,
-    color: '#' + Math.floor(Math.random()*16777215).toString(16),
-  };
-  // Send current state to new player
-  socket.emit('init', { id: socket.id, players, ball, scores });
-  // Notify others
-  socket.broadcast.emit('player-joined', players[socket.id]);
+
+  // Handle joining a room
+  socket.on('join-room', ({ roomId }) => {
+    if (!rooms[roomId]) return; // Invalid room
+
+    // Leave previous room if any
+    if (socket.roomId) {
+      socket.leave(socket.roomId);
+    }
+
+    // Join new room
+    socket.join(roomId);
+    socket.roomId = roomId;
+
+    // Add player to room
+    rooms[roomId].players[socket.id] = {
+      id: socket.id,
+      position: [0, 1, 0],
+      rotation: 0,
+      color: '#' + Math.floor(Math.random()*16777215).toString(16),
+    };
+
+    // Send room state to new player
+    socket.emit('init', { 
+      id: socket.id, 
+      players: rooms[roomId].players, 
+      ball: rooms[roomId].ball, 
+      scores: rooms[roomId].scores 
+    });
+
+    // Notify others in the room
+    socket.to(roomId).emit('player-joined', rooms[roomId].players[socket.id]);
+    
+    console.log(`Player ${socket.id} joined ${roomId}`);
+  });
 
   // Handle player movement
   socket.on('move', (data) => {
-    if (players[socket.id]) {
-      players[socket.id].position = data.position;
-      players[socket.id].rotation = data.rotation;
-      players[socket.id].name = data.name;
-      players[socket.id].team = data.team;
-      players[socket.id].skin = data.skin;
-      players[socket.id].color = data.color;
-      players[socket.id].invisible = data.invisible; // Store invisible state
-      players[socket.id].giant = data.giant; // Store giant state
-      // Use volatile emit for smoother real-time updates (drops packets if behind)
-      socket.volatile.broadcast.emit('player-move', { 
+    const roomId = socket.roomId;
+    if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
+      const p = rooms[roomId].players[socket.id];
+      p.position = data.position;
+      p.rotation = data.rotation;
+      p.name = data.name;
+      p.team = data.team;
+      p.skin = data.skin;
+      p.color = data.color;
+      p.invisible = data.invisible;
+      p.giant = data.giant;
+
+      socket.volatile.to(roomId).emit('player-move', { 
         id: socket.id, 
-        position: data.position, 
-        rotation: data.rotation,
-        name: data.name,
-        team: data.team,
-        skin: data.skin,
-        color: data.color,
-        invisible: data.invisible, // Broadcast invisible state
-        giant: data.giant // Broadcast giant state
+        ...data
       });
     }
   });
 
   // Handle ball update
   socket.on('ball-update', (data) => {
-    ball.position = data.position;
-    ball.velocity = data.velocity;
-    // Use volatile for smoother ball sync (prioritize newest data)
-    socket.volatile.broadcast.emit('ball-update', ball);
+    const roomId = socket.roomId;
+    if (roomId && rooms[roomId]) {
+      rooms[roomId].ball.position = data.position;
+      rooms[roomId].ball.velocity = data.velocity;
+      socket.volatile.to(roomId).emit('ball-update', rooms[roomId].ball);
+    }
   });
 
   // Handle goal
   socket.on('goal', (teamScored) => {
-    const now = Date.now();
-    // Debounce: Ignore goals within 3 seconds of the last one
-    if (now - lastGoalTime < 3000) {
-      return;
-    }
+    const roomId = socket.roomId;
+    if (!roomId || !rooms[roomId]) return;
 
-    if (scores[teamScored] !== undefined) {
-      scores[teamScored]++;
-      lastGoalTime = now;
-      io.emit('score-update', scores);
+    const room = rooms[roomId];
+    const now = Date.now();
+
+    if (now - room.lastGoalTime < 3000) return;
+
+    if (room.scores[teamScored] !== undefined) {
+      room.scores[teamScored]++;
+      room.lastGoalTime = now;
+      io.to(roomId).emit('score-update', room.scores);
       
-      // Reset ball after delay
       setTimeout(() => {
-        ball.position = [0, 0.5, 0];
-        ball.velocity = [0, 0, 0];
-        io.emit('ball-reset', ball);
+        room.ball.position = [0, 0.5, 0];
+        room.ball.velocity = [0, 0, 0];
+        io.to(roomId).emit('ball-reset', room.ball);
       }, 2000);
     }
   });
 
   // Handle reset scores
   socket.on('reset-scores', () => {
-    scores.red = 0;
-    scores.blue = 0;
-    io.emit('score-update', scores);
+    const roomId = socket.roomId;
+    if (roomId && rooms[roomId]) {
+      rooms[roomId].scores.red = 0;
+      rooms[roomId].scores.blue = 0;
+      io.to(roomId).emit('score-update', rooms[roomId].scores);
+    }
   });
 
   // Handle chat messages
   socket.on('chat-message', (data) => {
-    io.emit('chat-message', {
-      playerId: socket.id,
-      playerName: data.playerName || 'Anonymous',
-      team: data.team || '',
-      message: data.message,
-      timestamp: Date.now()
-    });
+    const roomId = socket.roomId;
+    if (roomId) {
+      io.to(roomId).emit('chat-message', {
+        playerId: socket.id,
+        playerName: data.playerName || 'Anonymous',
+        team: data.team || '',
+        message: data.message,
+        timestamp: Date.now()
+      });
+    }
   });
 
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-    delete players[socket.id];
-    io.emit('player-left', socket.id);
+    const roomId = socket.roomId;
+    
+    if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
+      delete rooms[roomId].players[socket.id];
+      io.to(roomId).emit('player-left', socket.id);
 
-    // Reset game state if no players are left
-    if (Object.keys(players).length === 0) {
-      console.log('No players left. Resetting game state.');
-      ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
-      scores = { red: 0, blue: 0 };
+      // Reset room if empty
+      if (Object.keys(rooms[roomId].players).length === 0) {
+        console.log(`Room ${roomId} empty. Resetting state.`);
+        rooms[roomId].ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+        rooms[roomId].scores = { red: 0, blue: 0 };
+      }
     }
   });
 });
