@@ -43,7 +43,6 @@ io.on('connection', (socket) => {
       position: [0, 1, 0],
       rotation: 0,
       color: '#' + Math.floor(Math.random()*16777215).toString(16),
-      model: 'cat', // Default model
     };
 
     // Send room state to new player
@@ -73,7 +72,6 @@ io.on('connection', (socket) => {
       p.color = data.color;
       p.invisible = data.invisible;
       p.giant = data.giant;
-      p.model = data.model;
 
       socket.volatile.to(roomId).emit('player-move', { 
         id: socket.id, 
