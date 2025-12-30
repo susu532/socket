@@ -4,19 +4,7 @@ const { Server } = require('socket.io');
 const server = http.createServer();
 const io = new Server(server, {
   cors: {
-    origin: (origin, callback) => {
-      // Allow any origin for debugging, or specify your list
-      const allowedOrigins = [
-        "http://localhost:5173", 
-        "https://soccer-2025.vercel.app",
-        "https://soccer-2025-git-main-susu532s-projects.vercel.app" // Common Vercel preview URL
-      ];
-      if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.includes("vercel.app")) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: ["http://localhost:5173", "https://soccer-2025.vercel.app"],
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -76,25 +64,18 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
       const p = rooms[roomId].players[socket.id];
-      // Update state
       p.position = data.position;
       p.rotation = data.rotation;
-      
-      // Only update static props if provided (initial sync or change)
-      if (data.name) p.name = data.name;
-      if (data.team) p.team = data.team;
-      if (data.model) p.model = data.model;
-      if (data.color) p.color = data.color;
-      if (data.invisible !== undefined) p.invisible = data.invisible;
-      if (data.giant !== undefined) p.giant = data.giant;
+      p.name = data.name;
+      p.team = data.team;
+      p.skin = data.skin;
+      p.color = data.color;
+      p.invisible = data.invisible;
+      p.giant = data.giant;
 
-      // Broadcast lightweight update
       socket.volatile.to(roomId).emit('player-move', { 
         id: socket.id, 
-        position: data.position,
-        rotation: data.rotation,
-        invisible: data.invisible,
-        giant: data.giant
+        ...data
       });
     }
   });
