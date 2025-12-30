@@ -4,7 +4,19 @@ const { Server } = require('socket.io');
 const server = http.createServer();
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://soccer-2025.vercel.app"],
+    origin: (origin, callback) => {
+      // Allow any origin for debugging, or specify your list
+      const allowedOrigins = [
+        "http://localhost:5173", 
+        "https://soccer-2025.vercel.app",
+        "https://soccer-2025-git-main-susu532s-projects.vercel.app" // Common Vercel preview URL
+      ];
+      if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.includes("vercel.app")) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -63,6 +75,7 @@ io.on('connection', (socket) => {
   socket.on('move', (data) => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
+      const p = rooms[roomId].players[socket.id];
       // Update state
       p.position = data.position;
       p.rotation = data.rotation;
