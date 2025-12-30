@@ -25,7 +25,7 @@ io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   // Handle joining a room
-  socket.on('join-room', ({ roomId, model }) => {
+  socket.on('join-room', ({ roomId }) => {
     if (!rooms[roomId]) return; // Invalid room
 
     // Leave previous room if any
@@ -43,7 +43,6 @@ io.on('connection', (socket) => {
       position: [0, 1, 0],
       rotation: 0,
       color: '#' + Math.floor(Math.random()*16777215).toString(16),
-      model: model || 'cat',
     };
 
     // Send room state to new player
@@ -64,7 +63,6 @@ io.on('connection', (socket) => {
   socket.on('move', (data) => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
-      const p = rooms[roomId].players[socket.id];
       // Update state
       p.position = data.position;
       p.rotation = data.rotation;
@@ -82,7 +80,6 @@ io.on('connection', (socket) => {
         id: socket.id, 
         position: data.position,
         rotation: data.rotation,
-        model: data.model, // Include model for sync
         invisible: data.invisible,
         giant: data.giant
       });
