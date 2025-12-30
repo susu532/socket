@@ -4,8 +4,9 @@ const { Server } = require('socket.io');
 const server = http.createServer();
 const io = new Server(server, {
   cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+    origin: ["http://localhost:5173", "https://soccer-2025.vercel.app"],
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
