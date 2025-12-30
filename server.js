@@ -11,26 +11,15 @@ const io = new Server(server, {
 });
 
 // Room state
-const rooms = {
-  room1: {
+const rooms = {};
+for (let i = 1; i <= 13; i++) {
+  rooms[`room${i}`] = {
     players: {},
     ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
     scores: { red: 0, blue: 0 },
     lastGoalTime: 0
-  },
-  room2: {
-    players: {},
-    ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
-    scores: { red: 0, blue: 0 },
-    lastGoalTime: 0
-  },
-  room3: {
-    players: {},
-    ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
-    scores: { red: 0, blue: 0 },
-    lastGoalTime: 0
-  }
-};
+  };
+}
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
