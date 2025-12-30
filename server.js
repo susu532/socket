@@ -108,7 +108,7 @@ io.on('connection', (socket) => {
     if (Object.keys(players).length === 0) {
       console.log('No players left. Resetting game state.');
       ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
-      scores = { red: 0, blue: 0 };
+      scoresa = { red: 0, blue: 0 };
     }
   });
 });
