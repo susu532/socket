@@ -39,6 +39,7 @@ io.on('connection', (socket) => {
       players[socket.id].skin = data.skin;
       players[socket.id].color = data.color;
       players[socket.id].invisible = data.invisible; // Store invisible state
+      players[socket.id].giant = data.giant; // Store giant state
       // Use volatile emit for smoother real-time updates (drops packets if behind)
       socket.volatile.broadcast.emit('player-move', { 
         id: socket.id, 
@@ -48,7 +49,8 @@ io.on('connection', (socket) => {
         team: data.team,
         skin: data.skin,
         color: data.color,
-        invisible: data.invisible // Broadcast invisible state
+        invisible: data.invisible, // Broadcast invisible state
+        giant: data.giant // Broadcast giant state
       });
     }
   });
