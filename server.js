@@ -24,7 +24,15 @@ const io = new Server(server, {
 // Rate limiter for events
 const rateLimits = new Map();
 
-function checkRateLimit(socket, event, maxPerSecond = 30) {
+// Adaptive rate limits based on player count
+function getAdaptiveRate(playerCount) {
+  // 1-2 players: 30Hz, 3-6 players: 20Hz, 7+ players: 15Hz
+  if (playerCount <= 2) return 30
+  if (playerCount <= 6) return 20
+  return 15
+}
+
+function checkRateLimit(socket, event, maxPerSecond = 30, roomId) {
   const now = Date.now();
   const key = `${socket.id}-${event}`;
   
@@ -128,6 +136,11 @@ for (let i = 1; i <= 13; i++) {
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
+  // Ping-pong for latency measurement
+  socket.on('ping', (timestamp) => {
+    socket.emit('pong', timestamp)
+  })
+
   // Handle joining a room
   socket.on('join-room', ({ roomId, character }) => {
     if (!rooms[roomId]) return;
@@ -172,11 +185,14 @@ io.on('connection', (socket) => {
 
   // Handle player movement with change detection and rate limiting
   socket.on('move', (data) => {
-    if (!checkRateLimit(socket, 'move', 45)) {
+    const roomId = socket.roomId
+    const playerCount = roomId && rooms[roomId] ? Object.keys(rooms[roomId].players).length : 2
+    const maxRate = getAdaptiveRate(playerCount)
+    
+    if (!checkRateLimit(socket, 'move', maxRate, roomId)) {
       return;
     }
     
-    const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
       const p = rooms[roomId].players[socket.id];
       
