@@ -230,22 +230,60 @@ io.on('connection', (socket) => {
   socket.on('goal', (teamScored) => {
     const roomId = socket.roomId;
     if (!roomId || !rooms[roomId]) return;
-
+ 
     const room = rooms[roomId];
     const now = Date.now();
-
+    
+    // Goal cooldown: prevent rapid goal spamming
     if (now - room.lastGoalTime < 3000) return;
-
-    if (room.scores[teamScored] !== undefined) {
+    
+    // Validate that ball is actually in goal zone
+    const ball = room.ball;
+    const ballX = ball.position[0];
+    const ballY = ball.position[1];
+    const ballZ = ball.position[2];
+    const blueGoalX = -11.2;
+    const redGoalX = 11.2;
+    const goalWidth = 2.2;
+    const goalHeightLimit = 4;
+    
+    // Verify ball position is within goal boundaries
+    const inGoalZone = (
+      Math.abs(ballZ) < goalWidth &&
+      ballY < goalHeightLimit &&
+      ballY >= 0
+    );
+    
+    // Check which goal was entered
+    let validGoal = false;
+    if (inGoalZone) {
+      if (ballX < blueGoalX) {
+        // Ball in blue goal zone (left)
+        validGoal = teamScored === 'blue';
+      } else if (ballX > redGoalX) {
+        // Ball in red goal zone (right)
+        validGoal = teamScored === 'red';
+      }
+    }
+    
+    // Only count goal if validation passes
+    if (validGoal && room.scores[teamScored] !== undefined) {
       room.scores[teamScored]++;
       room.lastGoalTime = now;
-      io.to(roomId).emit('score-update', room.scores);
       
+      // Broadcast to room (exclude sender)
+      socket.to(roomId).emit('score-update', room.scores);
+      
+      // Reset ball after 2 seconds
       setTimeout(() => {
         room.ball.position = [0, 0.5, 0];
         room.ball.velocity = [0, 0, 0];
-        io.to(roomId).emit('ball-reset', room.ball);
+        socket.to(roomId).emit('ball-reset', room.ball);
       }, 2000);
+      
+      console.log(`Goal scored for ${teamScored} in ${roomId} - validated by server`);
+    } else {
+      console.log(`Invalid goal attempt rejected: ball at [${ballX.toFixed(2)}, ${ballY.toFixed(2)}, ${ballZ.toFixed(2)}], claimed: ${teamScored}`);
     }
   });
 
@@ -255,7 +293,7 @@ io.on('connection', (socket) => {
     if (roomId && rooms[roomId]) {
       rooms[roomId].scores.red = 0;
       rooms[roomId].scores.blue = 0;
-      io.to(roomId).emit('score-update', rooms[roomId].scores);
+      socket.to(roomId).emit('score-update', rooms[roomId].scores);
     }
   });
 
@@ -285,25 +323,33 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
       delete rooms[roomId].players[socket.id];
-      io.to(roomId).emit('player-left', socket.id);
-
-      // Reset room if empty
+      socket.to(roomId).emit('player-left', socket.id);
+ 
+      // Delete empty rooms to free memory (not just reset)
       if (Object.keys(rooms[roomId].players).length === 0) {
-        console.log(`Room ${roomId} empty. Resetting state.`);
-        rooms[roomId].ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
-        rooms[roomId].scores = { red: 0, blue: 0 };
+        console.log(`Room ${roomId} empty. Deleting room to free memory.`);
+        delete rooms[roomId];
       }
-      
+       
       socket.leave(roomId);
       socket.roomId = null;
     }
   };
 
   socket.on('leave-room', handleLeaveRoom);
-
-  // Handle disconnect
+ 
+  // Handle disconnect - clean up rate limits
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
+    
+    // Clean up rate limits for this socket
+    const now = Date.now();
+    for (const key of rateLimits.keys()) {
+      if (key.startsWith(`${socket.id}-`)) {
+        rateLimits.delete(key);
+      }
+    }
+    
     handleLeaveRoom();
   });
 });
