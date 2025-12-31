@@ -256,7 +256,6 @@ io.on('connection', (socket) => {
 
     // Update room last activity
     rooms[roomId].lastGoalTime = Date.now();
-    roomPlayerCounts.set(roomId, Object.keys(rooms[roomId].players).length);
 
     // Send room state to new player
     socket.emit('init', { 
@@ -274,24 +273,6 @@ io.on('connection', (socket) => {
       color: rooms[roomId].players[socket.id].color,
       character: rooms[roomId].players[socket.id].character
     });
-    
-    console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
-  });
-
-    // Notify others in room
-    socket.to(roomId).emit('player-joined', {
-      id: socket.id,
-      name: rooms[roomId].players[socket.id].name,
-      team: rooms[roomId].players[socket.id].team,
-      color: rooms[roomId].players[socket.id].color,
-      character: rooms[roomId].players[socket.id].character
-    });
-    
-    console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
-  });
-
-    // Notify others in room
-    socket.to(roomId).emit('player-joined', rooms[roomId].players[socket.id]);
     
     console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
   });
