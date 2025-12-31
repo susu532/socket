@@ -190,6 +190,27 @@ function hasBallDataChanged(oldData, newData) {
   );
 }
 
+// Ensure room exists, create if deleted
+function ensureRoom(roomId) {
+  if (!rooms[roomId]) {
+    rooms[roomId] = {
+      players: {},
+      ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
+      scores: { red: 0, blue: 0 },
+      lastGoalTime: Date.now()
+    };
+    console.log(`Recreated room: ${roomId}`);
+  }
+  return true;
+}
+
+// Check if room can accept new players
+function canJoinRoom(roomId) {
+  if (!rooms[roomId]) return false;
+  const playerCount = Object.keys(rooms[roomId].players).length;
+  return playerCount < MAX_PLAYERS_PER_ROOM;
+}
+
 // Cache of random colors for consistent colors on reconnection
 const playerColors = new Map();
 
