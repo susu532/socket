@@ -21,7 +21,16 @@ const io = new Server(server, {
   }
 });
 
-// Rate limiter for events
+// Configuration constants
+const MAX_PLAYERS_PER_ROOM = 20;
+const MAX_ROOMS = 13;
+const IDLE_TIMEOUT = 60000; // 60 seconds
+const MAX_NAME_LENGTH = 20;
+const GOAL_RATE_LIMIT = 200; // 1 goal per 5 seconds
+const EVENT_RATE_LIMIT_PER_SOCKET = 40; // 40 events/sec total (move+chat+goal)
+const CONNECTION_FLOOD_LIMIT = 10; // 10 connections per IP per minute
+
+// Rate limiter with fixed window (no bursts)
 const rateLimits = new Map();
 
 function checkRateLimit(socket, event, maxPerSecond = 30) {
@@ -36,10 +45,10 @@ function checkRateLimit(socket, event, maxPerSecond = 30) {
   const data = rateLimits.get(key);
   const elapsed = (now - data.lastCheck) / 1000;
   
-  if (elapsed > 1) {
-    data.count = 1;
+  // Fixed window: reset only at second boundary
+  if (elapsed >= 1) {
+    data.count = 0;
     data.lastCheck = now;
-    return true;
   }
   
   if (data.count >= maxPerSecond) {
@@ -50,22 +59,89 @@ function checkRateLimit(socket, event, maxPerSecond = 30) {
   return true;
 }
 
-// Clean up old rate limits every 10 seconds
+// Track per-socket limits
+const socketEventCounts = new Map();
+
+function checkPerSocketLimit(socket) {
+  const now = Date.now();
+  if (!socketEventCounts.has(socket.id)) {
+    socketEventCounts.set(socket.id, { count: 0, lastCheck: now });
+    return true;
+  }
+  
+  const data = socketEventCounts.get(socket.id);
+  const elapsed = (now - data.lastCheck) / 1000;
+  
+  // Reset every second
+  if (elapsed >= 1) {
+    data.count = 0;
+    data.lastCheck = now;
+  }
+  
+  if (data.count >= EVENT_RATE_LIMIT_PER_SOCKET) {
+    return false;
+  }
+  
+  data.count++;
+  return true;
+}
+
+// Clean up rate limits every 5 seconds
 setInterval(() => {
   const now = Date.now();
   for (const [key, data] of rateLimits.entries()) {
-    if (now - data.lastCheck > 60000) {
+    if (now - data.lastCheck > 5000) {
       rateLimits.delete(key);
     }
   }
-}, 10000);
+}, 5000);
+
+// Clean up per-socket limits every 5 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [socketId, data] of socketEventCounts.entries()) {
+    if (now - data.lastCheck > 5000) {
+      socketEventCounts.delete(socketId);
+    }
+  }
+}, 5000);
+
+// Connection flood protection
+const ipConnections = new Map();
+const MAX_CONNECTIONS_PER_IP = 10;
+
+function trackConnection(socket) {
+  const ip = socket.handshake.address;
+  if (!ipConnections.has(ip)) {
+    ipConnections.set(ip, { count: 1, lastCheck: Date.now() });
+    return true;
+  }
+  
+  const data = ipConnections.get(ip);
+  const elapsed = (Date.now() - data.lastCheck) / 1000;
+  
+  // Reset every minute
+  if (elapsed >= 60) {
+    data.count = 0;
+    data.lastCheck = Date.now();
+  }
+  
+  if (data.count >= CONNECTION_FLOOD_LIMIT) {
+    console.log(`Connection flood from IP: ${ip}`);
+    socket.disconnect();
+    return false;
+  }
+  
+  data.count++;
+  return true;
+}
 
 // Input validation functions
 function validatePosition(pos) {
   if (!Array.isArray(pos) || pos.length !== 3) return false;
   if (pos.some(n => typeof n !== 'number' || isNaN(n))) return false;
-  if (Math.abs(pos[0]) > 50 || Math.abs(pos[2]) > 50) return false;
-  if (pos[1] < -10 || pos[1] > 20) return false;
+  if (Math.abs(pos[0]) > 30 || Math.abs(pos[2]) > 30) return false;
+  if (pos[1] < -10 || pos[1] > 5) return false;
   return true;
 }
 
@@ -75,6 +151,18 @@ function validateRotation(rot) {
 
 function validateTeam(team) {
   return team === 'red' || team === 'blue' || team === null;
+}
+
+function validateCharacter(character) {
+  const valid = ['cat', 'car'];
+  return valid.includes(character);
+}
+
+function validateName(name) {
+  if (!name || typeof name !== 'string') return false;
+  if (name.length > MAX_NAME_LENGTH) return false;
+  if (!/^[a-zA-Z0-9 ]+$/.test(name)) return false;
+  return true;
 }
 
 function hasPositionChanged(oldPos, newPos) {
@@ -126,12 +214,16 @@ for (let i = 1; i <= 13; i++) {
 }
 
 io.on('connection', (socket) => {
+  // Track connection
+  trackConnection(socket);
+  
+  console.log('Player connected:', socket.id);
   console.log('Player connected:', socket.id);
 
-  // Handle joining a room
+  // Handle joining a room with all validations
   socket.on('join-room', ({ roomId, character }) => {
-    if (!rooms[roomId]) return;
-
+    if (!ensureRoom(roomId)) return;
+    
     // Leave previous room if any
     if (socket.roomId) {
       socket.leave(socket.roomId);
@@ -141,20 +233,30 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     socket.roomId = roomId;
 
-    // Add player to room with cached color
+    // Check room capacity
+    if (!canJoinRoom(roomId)) {
+      socket.emit('error', { message: 'Room is full' });
+      return;
+    }
+
+    // Get cached color or generate new one
+    const playerColor = getRandomPlayerColor(socket.id);
+
+    // Add player to room with fully validated data
     rooms[roomId].players[socket.id] = {
       id: socket.id,
       position: [0, 1, 0],
       rotation: 0,
-      character: character || 'cat',
+      character: validateCharacter(character),
       name: 'Player',
       team: null,
-      color: getRandomPlayerColor(socket.id),
+      color: playerColor,
       lastGoalTime: Date.now()
     };
 
     // Update room last activity
     rooms[roomId].lastGoalTime = Date.now();
+    roomPlayerCounts.set(roomId, Object.keys(rooms[roomId].players).length);
 
     // Send room state to new player
     socket.emit('init', { 
@@ -163,6 +265,30 @@ io.on('connection', (socket) => {
       ball: rooms[roomId].ball, 
       scores: rooms[roomId].scores 
     });
+
+    // Notify others in room
+    socket.to(roomId).emit('player-joined', {
+      id: socket.id,
+      name: rooms[roomId].players[socket.id].name,
+      team: rooms[roomId].players[socket.id].team,
+      color: rooms[roomId].players[socket.id].color,
+      character: rooms[roomId].players[socket.id].character
+    });
+    
+    console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
+  });
+
+    // Notify others in room
+    socket.to(roomId).emit('player-joined', {
+      id: socket.id,
+      name: rooms[roomId].players[socket.id].name,
+      team: rooms[roomId].players[socket.id].team,
+      color: rooms[roomId].players[socket.id].color,
+      character: rooms[roomId].players[socket.id].character
+    });
+    
+    console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
+  });
 
     // Notify others in room
     socket.to(roomId).emit('player-joined', rooms[roomId].players[socket.id]);
