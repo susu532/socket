@@ -21,16 +21,7 @@ const io = new Server(server, {
   }
 });
 
-// Configuration constants
-const MAX_PLAYERS_PER_ROOM = 20;
-const MAX_ROOMS = 13;
-const IDLE_TIMEOUT = 60000; // 60 seconds
-const MAX_NAME_LENGTH = 20;
-const GOAL_RATE_LIMIT = 200; // 1 goal per 5 seconds
-const EVENT_RATE_LIMIT_PER_SOCKET = 40; // 40 events/sec total (move+chat+goal)
-const CONNECTION_FLOOD_LIMIT = 10; // 10 connections per IP per minute
-
-// Rate limiter with fixed window (no bursts)
+// Rate limiter for events
 const rateLimits = new Map();
 
 function checkRateLimit(socket, event, maxPerSecond = 30) {
@@ -45,10 +36,10 @@ function checkRateLimit(socket, event, maxPerSecond = 30) {
   const data = rateLimits.get(key);
   const elapsed = (now - data.lastCheck) / 1000;
   
-  // Fixed window: reset only at second boundary
-  if (elapsed >= 1) {
-    data.count = 0;
+  if (elapsed > 1) {
+    data.count = 1;
     data.lastCheck = now;
+    return true;
   }
   
   if (data.count >= maxPerSecond) {
@@ -59,89 +50,22 @@ function checkRateLimit(socket, event, maxPerSecond = 30) {
   return true;
 }
 
-// Track per-socket limits
-const socketEventCounts = new Map();
-
-function checkPerSocketLimit(socket) {
-  const now = Date.now();
-  if (!socketEventCounts.has(socket.id)) {
-    socketEventCounts.set(socket.id, { count: 0, lastCheck: now });
-    return true;
-  }
-  
-  const data = socketEventCounts.get(socket.id);
-  const elapsed = (now - data.lastCheck) / 1000;
-  
-  // Reset every second
-  if (elapsed >= 1) {
-    data.count = 0;
-    data.lastCheck = now;
-  }
-  
-  if (data.count >= EVENT_RATE_LIMIT_PER_SOCKET) {
-    return false;
-  }
-  
-  data.count++;
-  return true;
-}
-
-// Clean up rate limits every 5 seconds
+// Clean up old rate limits every 10 seconds
 setInterval(() => {
   const now = Date.now();
   for (const [key, data] of rateLimits.entries()) {
-    if (now - data.lastCheck > 5000) {
+    if (now - data.lastCheck > 60000) {
       rateLimits.delete(key);
     }
   }
-}, 5000);
-
-// Clean up per-socket limits every 5 seconds
-setInterval(() => {
-  const now = Date.now();
-  for (const [socketId, data] of socketEventCounts.entries()) {
-    if (now - data.lastCheck > 5000) {
-      socketEventCounts.delete(socketId);
-    }
-  }
-}, 5000);
-
-// Connection flood protection
-const ipConnections = new Map();
-const MAX_CONNECTIONS_PER_IP = 10;
-
-function trackConnection(socket) {
-  const ip = socket.handshake.address;
-  if (!ipConnections.has(ip)) {
-    ipConnections.set(ip, { count: 1, lastCheck: Date.now() });
-    return true;
-  }
-  
-  const data = ipConnections.get(ip);
-  const elapsed = (Date.now() - data.lastCheck) / 1000;
-  
-  // Reset every minute
-  if (elapsed >= 60) {
-    data.count = 0;
-    data.lastCheck = Date.now();
-  }
-  
-  if (data.count >= CONNECTION_FLOOD_LIMIT) {
-    console.log(`Connection flood from IP: ${ip}`);
-    socket.disconnect();
-    return false;
-  }
-  
-  data.count++;
-  return true;
-}
+}, 10000);
 
 // Input validation functions
 function validatePosition(pos) {
   if (!Array.isArray(pos) || pos.length !== 3) return false;
   if (pos.some(n => typeof n !== 'number' || isNaN(n))) return false;
-  if (Math.abs(pos[0]) > 30 || Math.abs(pos[2]) > 30) return false;
-  if (pos[1] < -10 || pos[1] > 5) return false;
+  if (Math.abs(pos[0]) > 50 || Math.abs(pos[2]) > 50) return false;
+  if (pos[1] < -10 || pos[1] > 20) return false;
   return true;
 }
 
@@ -151,18 +75,6 @@ function validateRotation(rot) {
 
 function validateTeam(team) {
   return team === 'red' || team === 'blue' || team === null;
-}
-
-function validateCharacter(character) {
-  const valid = ['cat', 'car'];
-  return valid.includes(character);
-}
-
-function validateName(name) {
-  if (!name || typeof name !== 'string') return false;
-  if (name.length > MAX_NAME_LENGTH) return false;
-  if (!/^[a-zA-Z0-9 ]+$/.test(name)) return false;
-  return true;
 }
 
 function hasPositionChanged(oldPos, newPos) {
@@ -190,27 +102,6 @@ function hasBallDataChanged(oldData, newData) {
   );
 }
 
-// Ensure room exists, create if deleted
-function ensureRoom(roomId) {
-  if (!rooms[roomId]) {
-    rooms[roomId] = {
-      players: {},
-      ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
-      scores: { red: 0, blue: 0 },
-      lastGoalTime: Date.now()
-    };
-    console.log(`Recreated room: ${roomId}`);
-  }
-  return true;
-}
-
-// Check if room can accept new players
-function canJoinRoom(roomId) {
-  if (!rooms[roomId]) return false;
-  const playerCount = Object.keys(rooms[roomId].players).length;
-  return playerCount < MAX_PLAYERS_PER_ROOM;
-}
-
 // Cache of random colors for consistent colors on reconnection
 const playerColors = new Map();
 
@@ -235,16 +126,12 @@ for (let i = 1; i <= 13; i++) {
 }
 
 io.on('connection', (socket) => {
-  // Track connection
-  trackConnection(socket);
-  
-  console.log('Player connected:', socket.id);
   console.log('Player connected:', socket.id);
 
-  // Handle joining a room with all validations
+  // Handle joining a room
   socket.on('join-room', ({ roomId, character }) => {
-    if (!ensureRoom(roomId)) return;
-    
+    if (!rooms[roomId]) return;
+
     // Leave previous room if any
     if (socket.roomId) {
       socket.leave(socket.roomId);
@@ -254,24 +141,15 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     socket.roomId = roomId;
 
-    // Check room capacity
-    if (!canJoinRoom(roomId)) {
-      socket.emit('error', { message: 'Room is full' });
-      return;
-    }
-
-    // Get cached color or generate new one
-    const playerColor = getRandomPlayerColor(socket.id);
-
-    // Add player to room with fully validated data
+    // Add player to room with cached color
     rooms[roomId].players[socket.id] = {
       id: socket.id,
       position: [0, 1, 0],
       rotation: 0,
-      character: validateCharacter(character),
+      character: character || 'cat',
       name: 'Player',
       team: null,
-      color: playerColor,
+      color: getRandomPlayerColor(socket.id),
       lastGoalTime: Date.now()
     };
 
@@ -287,13 +165,7 @@ io.on('connection', (socket) => {
     });
 
     // Notify others in room
-    socket.to(roomId).emit('player-joined', {
-      id: socket.id,
-      name: rooms[roomId].players[socket.id].name,
-      team: rooms[roomId].players[socket.id].team,
-      color: rooms[roomId].players[socket.id].color,
-      character: rooms[roomId].players[socket.id].character
-    });
+    socket.to(roomId).emit('player-joined', rooms[roomId].players[socket.id]);
     
     console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
   });
@@ -358,60 +230,22 @@ io.on('connection', (socket) => {
   socket.on('goal', (teamScored) => {
     const roomId = socket.roomId;
     if (!roomId || !rooms[roomId]) return;
- 
+
     const room = rooms[roomId];
     const now = Date.now();
-    
-    // Goal cooldown: prevent rapid goal spamming
+
     if (now - room.lastGoalTime < 3000) return;
-    
-    // Validate that ball is actually in goal zone
-    const ball = room.ball;
-    const ballX = ball.position[0];
-    const ballY = ball.position[1];
-    const ballZ = ball.position[2];
-    const blueGoalX = -11.2;
-    const redGoalX = 11.2;
-    const goalWidth = 2.2;
-    const goalHeightLimit = 4;
-    
-    // Verify ball position is within goal boundaries
-    const inGoalZone = (
-      Math.abs(ballZ) < goalWidth &&
-      ballY < goalHeightLimit &&
-      ballY >= 0
-    );
-    
-    // Check which goal was entered
-    let validGoal = false;
-    if (inGoalZone) {
-      if (ballX < blueGoalX) {
-        // Ball in blue goal zone (left)
-        validGoal = teamScored === 'blue';
-      } else if (ballX > redGoalX) {
-        // Ball in red goal zone (right)
-        validGoal = teamScored === 'red';
-      }
-    }
-    
-    // Only count goal if validation passes
-    if (validGoal && room.scores[teamScored] !== undefined) {
+
+    if (room.scores[teamScored] !== undefined) {
       room.scores[teamScored]++;
       room.lastGoalTime = now;
+      io.to(roomId).emit('score-update', room.scores);
       
-      // Broadcast to room (exclude sender)
-      socket.to(roomId).emit('score-update', room.scores);
-      
-      // Reset ball after 2 seconds
       setTimeout(() => {
         room.ball.position = [0, 0.5, 0];
         room.ball.velocity = [0, 0, 0];
-        socket.to(roomId).emit('ball-reset', room.ball);
+        io.to(roomId).emit('ball-reset', room.ball);
       }, 2000);
-      
-      console.log(`Goal scored for ${teamScored} in ${roomId} - validated by server`);
-    } else {
-      console.log(`Invalid goal attempt rejected: ball at [${ballX.toFixed(2)}, ${ballY.toFixed(2)}, ${ballZ.toFixed(2)}], claimed: ${teamScored}`);
     }
   });
 
@@ -421,7 +255,7 @@ io.on('connection', (socket) => {
     if (roomId && rooms[roomId]) {
       rooms[roomId].scores.red = 0;
       rooms[roomId].scores.blue = 0;
-      socket.to(roomId).emit('score-update', rooms[roomId].scores);
+      io.to(roomId).emit('score-update', rooms[roomId].scores);
     }
   });
 
@@ -451,33 +285,25 @@ io.on('connection', (socket) => {
     const roomId = socket.roomId;
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
       delete rooms[roomId].players[socket.id];
-      socket.to(roomId).emit('player-left', socket.id);
- 
-      // Delete empty rooms to free memory (not just reset)
+      io.to(roomId).emit('player-left', socket.id);
+
+      // Reset room if empty
       if (Object.keys(rooms[roomId].players).length === 0) {
-        console.log(`Room ${roomId} empty. Deleting room to free memory.`);
-        delete rooms[roomId];
+        console.log(`Room ${roomId} empty. Resetting state.`);
+        rooms[roomId].ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+        rooms[roomId].scores = { red: 0, blue: 0 };
       }
-       
+      
       socket.leave(roomId);
       socket.roomId = null;
     }
   };
 
   socket.on('leave-room', handleLeaveRoom);
- 
-  // Handle disconnect - clean up rate limits
+
+  // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-    
-    // Clean up rate limits for this socket
-    const now = Date.now();
-    for (const key of rateLimits.keys()) {
-      if (key.startsWith(`${socket.id}-`)) {
-        rateLimits.delete(key);
-      }
-    }
-    
     handleLeaveRoom();
   });
 });
