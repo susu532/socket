@@ -172,7 +172,7 @@ io.on('connection', (socket) => {
 
   // Handle player movement with change detection and rate limiting
   socket.on('move', (data) => {
-    if (!checkRateLimit(socket, 'move', 30)) {
+    if (!checkRateLimit(socket, 'move', 45)) {
       return;
     }
     
