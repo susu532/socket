@@ -25,7 +25,7 @@ io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   // Handle joining a room
-  socket.on('join-room', ({ roomId }) => {
+  socket.on('join-room', ({ roomId, character }) => {
     if (!rooms[roomId]) return; // Invalid room
 
     // Leave previous room if any
@@ -42,6 +42,9 @@ io.on('connection', (socket) => {
       id: socket.id,
       position: [0, 1, 0],
       rotation: 0,
+      character: character || 'cat',
+      name: 'Player',
+      team: null,
       color: '#' + Math.floor(Math.random()*16777215).toString(16),
     };
 
@@ -53,10 +56,10 @@ io.on('connection', (socket) => {
       scores: rooms[roomId].scores 
     });
 
-    // Notify others in the room
+    // Notify others in room
     socket.to(roomId).emit('player-joined', rooms[roomId].players[socket.id]);
     
-    console.log(`Player ${socket.id} joined ${roomId}`);
+    console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
   });
 
   // Handle player movement
@@ -68,10 +71,10 @@ io.on('connection', (socket) => {
       p.rotation = data.rotation;
       p.name = data.name;
       p.team = data.team;
-      p.skin = data.skin;
       p.color = data.color;
       p.invisible = data.invisible;
       p.giant = data.giant;
+      p.character = data.character;
 
       socket.volatile.to(roomId).emit('player-move', { 
         id: socket.id, 
