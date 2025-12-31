@@ -137,11 +137,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnect
-  socket.on('disconnect', () => {
-    console.log('Player disconnected:', socket.id);
+  const handleLeaveRoom = () => {
     const roomId = socket.roomId;
-    
     if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
       delete rooms[roomId].players[socket.id];
       io.to(roomId).emit('player-left', socket.id);
@@ -152,7 +149,18 @@ io.on('connection', (socket) => {
         rooms[roomId].ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
         rooms[roomId].scores = { red: 0, blue: 0 };
       }
+      
+      socket.leave(roomId);
+      socket.roomId = null;
     }
+  };
+
+  socket.on('leave-room', handleLeaveRoom);
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log('Player disconnected:', socket.id);
+    handleLeaveRoom();
   });
 });
 
