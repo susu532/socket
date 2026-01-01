@@ -170,57 +170,90 @@ io.on('connection', (socket) => {
   });
 
   // Handle player movement with change detection and rate limiting
-  socket.on('move', (data) => {
+  socket.on('m', (data) => {
     const playerCount = Object.keys(gameState.players).length;
     const maxRate = getAdaptiveRate(playerCount);
     
-    if (!checkRateLimit(socket, 'move', maxRate)) {
+    if (!checkRateLimit(socket, 'm', maxRate)) {
       return;
     }
     
     if (gameState.players[socket.id]) {
       const p = gameState.players[socket.id];
       
-      // Validate input
-      if (!validatePosition(data.position)) return;
-      if (!validateRotation(data.rotation)) return;
-      if (!validateTeam(data.team)) return;
+      // Validate input - data.p is position, data.r is rotation
+      if (!validatePosition(data.p)) return;
+      if (!validateRotation(data.r)) return;
       
       // Check if data changed (Hybrid: strict rotation, loose position)
-      const rotationChanged = p.rotation !== data.rotation;
-      const positionChanged = hasPositionChanged(p.position, data.position);
-      const stateChanged = p.invisible !== data.invisible || p.giant !== data.giant;
+      const rotationChanged = p.rotation !== data.r;
+      const positionChanged = hasPositionChanged(p.position, data.p);
+      const stateChanged = p.invisible !== data.i || p.giant !== data.g;
       
       if (rotationChanged || positionChanged || stateChanged) {
-        p.position = data.position;
-        p.rotation = data.rotation;
-        p.name = data.name;
-        p.team = data.team;
-        p.color = data.color;
-        p.invisible = data.invisible;
-        p.giant = data.giant;
-        p.character = data.character;
+        p.position = data.p;
+        p.rotation = data.r;
+        p.invisible = data.i;
+        p.giant = data.g;
 
-        socket.volatile.broadcast.emit('player-move', { 
+        socket.volatile.broadcast.emit('m', { 
           id: socket.id, 
-          ...data
+          p: data.p,
+          r: data.r,
+          i: data.i,
+          g: data.g
         });
       }
     }
   });
 
+  // Handle player metadata updates (name, team, character, color)
+  socket.on('player-info', (data) => {
+    if (gameState.players[socket.id]) {
+      const p = gameState.players[socket.id];
+      
+      // Update fields if present
+      if (data.name) p.name = data.name;
+      if (validateTeam(data.team)) p.team = data.team;
+      if (data.character) p.character = data.character;
+      if (data.color) p.color = data.color;
+
+      // Broadcast full info update
+      socket.broadcast.emit('player-info', {
+        id: socket.id,
+        name: p.name,
+        team: p.team,
+        character: p.character,
+        color: p.color
+      });
+    }
+  });
+
   // Handle ball update with change detection
-  socket.on('ball-update', (data) => {
+  socket.on('b', (data) => {
     // Validate ball data
-    if (!validatePosition(data.position) || !validatePosition(data.velocity)) return;
+    if (!validatePosition(data.p) || !validatePosition(data.v)) return;
     
     const ball = gameState.ball;
     
     // Only update if ball data changed significantly
-    if (hasBallDataChanged(ball, data)) {
-      ball.position = data.position;
-      ball.velocity = data.velocity;
-      socket.volatile.broadcast.emit('ball-update', ball);
+    // We need to adapt hasBallDataChanged to work with new format or just inline check
+    // Let's inline for clarity with new keys
+    const posThreshold = 0.01;
+    const velThreshold = 0.01;
+
+    const changed = 
+      Math.abs(ball.position[0] - data.p[0]) > posThreshold ||
+      Math.abs(ball.position[1] - data.p[1]) > posThreshold ||
+      Math.abs(ball.position[2] - data.p[2]) > posThreshold ||
+      Math.abs(ball.velocity[0] - data.v[0]) > velThreshold ||
+      Math.abs(ball.velocity[1] - data.v[1]) > velThreshold ||
+      Math.abs(ball.velocity[2] - data.v[2]) > velThreshold;
+    
+    if (changed) {
+      ball.position = data.p;
+      ball.velocity = data.v;
+      socket.volatile.broadcast.emit('b', { p: data.p, v: data.v });
     }
   });
 
