@@ -150,11 +150,59 @@ const gameState = {
   players: {},
   ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
   scores: { red: 0, blue: 0 },
-  lastGoalTime: 0
+  lastGoalTime: 0,
+  ballAuthority: null // Socket ID of the player controlling the ball
 };
 
 // Cached player count for performance (avoid O(n) on every move)
 let cachedPlayerCount = 0;
+
+// Ball Authority Management Loop (10Hz)
+setInterval(() => {
+  const playerIds = Object.keys(gameState.players);
+  if (playerIds.length === 0) {
+    gameState.ballAuthority = null;
+    return;
+  }
+
+  // 1. Find closest player to ball
+  let closestId = null;
+  let minDistance = Infinity;
+  
+  for (const id of playerIds) {
+    const p = gameState.players[id];
+    if (!p || !p.position) continue;
+    
+    const dx = p.position[0] - gameState.ball.position[0];
+    const dy = p.position[1] - gameState.ball.position[1];
+    const dz = p.position[2] - gameState.ball.position[2];
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    
+    if (dist < minDistance) {
+      minDistance = dist;
+      closestId = id;
+    }
+  }
+
+  // 2. Determine Authority
+  let newAuthority = null;
+  
+  // Rule: If closest player is within 3 meters, they get authority (Interaction/Dribble)
+  if (closestId && minDistance < 3.0) {
+    newAuthority = closestId;
+  } else {
+    // Fallback: "Master Client" (oldest connection) handles physics when no one is close
+    // Since keys are usually insertion ordered in JS, first key is oldest
+    newAuthority = playerIds[0];
+  }
+
+  // 3. Update and Broadcast if changed
+  if (gameState.ballAuthority !== newAuthority) {
+    gameState.ballAuthority = newAuthority;
+    io.emit('ball-authority', newAuthority);
+    // console.log(`Ball authority transferred to: ${newAuthority}`);
+  }
+}, 100); // 10Hz check
 
 // Periodic full state sync to fix desync
 setInterval(() => {
@@ -163,6 +211,7 @@ setInterval(() => {
       players: gameState.players,
       ball: gameState.ball,
       scores: gameState.scores,
+      ballAuthority: gameState.ballAuthority, // Include authority in sync
       timestamp: Date.now()
     });
   }
@@ -201,7 +250,8 @@ io.on('connection', (socket) => {
       id: socket.id, 
       players: gameState.players, 
       ball: gameState.ball, 
-      scores: gameState.scores 
+      scores: gameState.scores,
+      ballAuthority: gameState.ballAuthority
     });
 
     // Notify others
@@ -363,6 +413,10 @@ io.on('connection', (socket) => {
         console.log(`Game empty. Resetting state.`);
         gameState.ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
         gameState.scores = { red: 0, blue: 0 };
+        gameState.ballAuthority = null;
+      } else if (gameState.ballAuthority === socket.id) {
+        // Authority left, will be reassigned by loop next tick
+        gameState.ballAuthority = null;
       }
     }
   };
