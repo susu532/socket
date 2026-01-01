@@ -272,19 +272,19 @@ io.on('connection', (socket) => {
       const p = gameState.players[socket.id];
       
       // Validate input - data.p is position, data.r is rotation
-      if (!validatePosition(data.p)) return;
-      if (!validateRotation(data.r)) return;
+      if (data.p && !validatePosition(data.p)) return;
+      if (data.r !== undefined && !validateRotation(data.r)) return;
       
       // Check if data changed (Hybrid: strict rotation, loose position)
-      const rotationChanged = p.rotation !== data.r;
-      const positionChanged = hasPositionChanged(p.position, data.p);
+      const rotationChanged = data.r !== undefined && p.rotation !== data.r;
+      const positionChanged = data.p && hasPositionChanged(p.position, data.p);
       const stateChanged = p.invisible !== data.i || p.giant !== data.g;
       
       if (rotationChanged || positionChanged || stateChanged) {
-        p.position = data.p;
-        p.rotation = data.r;
-        p.invisible = data.i;
-        p.giant = data.g;
+        if (data.p) p.position = data.p;
+        if (data.r !== undefined) p.rotation = data.r;
+        if (data.i !== undefined) p.invisible = data.i;
+        if (data.g !== undefined) p.giant = data.g;
 
         socket.broadcast.emit('m', { 
           id: socket.id, 
