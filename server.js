@@ -13,7 +13,7 @@ const io = new Server(server, {
   pingInterval: 8000,
   transports: ['websocket', 'polling'],
   allowUpgrades: true,
-  maxHttpBufferSize: 1e6,
+  maxHttpBufferSize: 65536,
   perMessageDeflate: {
     threshold: 1024,
     concurrencyLimit: 10,
@@ -21,8 +21,8 @@ const io = new Server(server, {
   }
 });
 
-// Rate limiter for events
-const rateLimits = new Map();
+// Rate limiter for events - bucket-based for O(1) cleanup
+const rateLimitBuckets = new Map();
 
 // Adaptive rate limits based on player count
 function getAdaptiveRate(playerCount) {
@@ -32,38 +32,61 @@ function getAdaptiveRate(playerCount) {
   return 15
 }
 
+// Adaptive ball update rate based on velocity
+function getBallUpdateRate(velocity) {
+  if (!velocity || velocity.length !== 3) return 30;
+  const speed = Math.sqrt(
+    velocity[0] ** 2 +
+    velocity[1] ** 2 +
+    velocity[2] ** 2
+  );
+  if (speed < 0.5) return 5;  // Slow: 5 Hz (200ms)
+  if (speed < 2.0) return 15; // Medium: 15 Hz (66ms)
+  return 30;                  // Fast: 30 Hz (33ms)
+}
+
 function checkRateLimit(socket, event, maxPerSecond = 30) {
   const now = Date.now();
   const key = `${socket.id}-${event}`;
-  
-  if (!rateLimits.has(key)) {
-    rateLimits.set(key, { count: 1, lastCheck: now });
+  const bucketTime = Math.floor(now / 1000);
+
+  // Get or create bucket
+  if (!rateLimitBuckets.has(bucketTime)) {
+    rateLimitBuckets.set(bucketTime, new Map());
+  }
+  const bucket = rateLimitBuckets.get(bucketTime);
+
+  if (!bucket.has(key)) {
+    bucket.set(key, { count: 1, lastCheck: now });
     return true;
   }
-  
-  const data = rateLimits.get(key);
+
+  const data = bucket.get(key);
   const elapsed = (now - data.lastCheck) / 1000;
-  
+
   if (elapsed > 1) {
     data.count = 1;
     data.lastCheck = now;
     return true;
   }
-  
+
   if (data.count >= maxPerSecond) {
     return false;
   }
-  
+
   data.count++;
   return true;
 }
 
-// Clean up old rate limits every 10 seconds
+// Clean up old rate limit buckets every 10 seconds (O(1) cleanup)
 setInterval(() => {
   const now = Date.now();
-  for (const [key, data] of rateLimits.entries()) {
-    if (now - data.lastCheck > 60000) {
-      rateLimits.delete(key);
+  const currentBucket = Math.floor(now / 1000);
+
+  // Delete buckets older than 2 minutes
+  for (const [bucketTime] of rateLimitBuckets.entries()) {
+    if (currentBucket - bucketTime > 120) {
+      rateLimitBuckets.delete(bucketTime);
     }
   }
 }, 10000);
@@ -95,7 +118,7 @@ function hasPositionChanged(oldPos, newPos) {
 }
 
 function hasBallDataChanged(oldData, newData) {
-  const posThreshold = 0.01;
+  const posThreshold = 0.05; // Increased from 0.01 to 0.05 (5cm precision)
   const velThreshold = 0.01;
   
   if (!oldData) return true;
@@ -130,6 +153,9 @@ const gameState = {
   lastGoalTime: 0
 };
 
+// Cached player count for performance (avoid O(n) on every move)
+let cachedPlayerCount = 0;
+
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
@@ -155,6 +181,9 @@ io.on('connection', (socket) => {
     // Update last activity
     gameState.lastGoalTime = Date.now();
 
+    // Update cached player count
+    cachedPlayerCount = Object.keys(gameState.players).length;
+
     // Send game state to new player
     socket.emit('init', { 
       id: socket.id, 
@@ -171,8 +200,7 @@ io.on('connection', (socket) => {
 
   // Handle player movement with change detection and rate limiting
   socket.on('m', (data) => {
-    const playerCount = Object.keys(gameState.players).length;
-    const maxRate = getAdaptiveRate(playerCount);
+    const maxRate = getAdaptiveRate(cachedPlayerCount);
     
     if (!checkRateLimit(socket, 'm', maxRate)) {
       return;
@@ -229,8 +257,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle ball update with change detection
+  // Handle ball update with change detection and rate limiting
   socket.on('b', (data) => {
+    // Validate ball data first to calculate velocity-based rate
+    if (!validatePosition(data.p) || !validatePosition(data.v)) return;
+
+    // ADD: Adaptive server-side rate limit for ball updates based on velocity
+    const adaptiveRate = getBallUpdateRate(data.v);
+    if (!checkRateLimit(socket, 'b', adaptiveRate)) return;
+
     // Validate ball data
     if (!validatePosition(data.p) || !validatePosition(data.v)) return;
     
@@ -239,7 +274,7 @@ io.on('connection', (socket) => {
     // Only update if ball data changed significantly
     // We need to adapt hasBallDataChanged to work with new format or just inline check
     // Let's inline for clarity with new keys
-    const posThreshold = 0.01;
+    const posThreshold = 0.05; // Increased from 0.01 to 0.05 (5cm precision)
     const velThreshold = 0.01;
 
     const changed = 
@@ -305,6 +340,10 @@ io.on('connection', (socket) => {
   const handleLeaveGame = () => {
     if (gameState.players[socket.id]) {
       delete gameState.players[socket.id];
+
+      // Update cached player count
+      cachedPlayerCount = Object.keys(gameState.players).length;
+
       io.emit('player-left', socket.id);
 
       // Reset game if empty
@@ -328,22 +367,28 @@ io.on('connection', (socket) => {
 // Game cleanup system - clean up inactive game state every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  const playerCount = Object.keys(gameState.players).length;
-  
+
   // Reset game if empty for > 5 minutes
-  if (playerCount === 0 && now - gameState.lastGoalTime > 300000) {
+  if (cachedPlayerCount === 0 && now - gameState.lastGoalTime > 300000) {
     console.log(`Cleaned up empty game state`);
     gameState.ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
     gameState.scores = { red: 0, blue: 0 };
     gameState.lastGoalTime = now;
   }
-  
+
   // Reset scores if game has been inactive for 10 minutes
-  if (playerCount > 0 && now - gameState.lastGoalTime > 600000) {
+  if (cachedPlayerCount > 0 && now - gameState.lastGoalTime > 600000) {
     console.log(`Reset scores for inactive game`);
     gameState.scores = { red: 0, blue: 0 };
     io.emit('score-update', gameState.scores);
     gameState.lastGoalTime = now;
+  }
+
+  // ADD: Clean up playerColors for disconnected players (memory leak fix)
+  for (const [socketId] of playerColors.entries()) {
+    if (!gameState.players[socketId]) {
+      playerColors.delete(socketId);
+    }
   }
 }, 300000);
 
