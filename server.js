@@ -156,6 +156,18 @@ const gameState = {
 // Cached player count for performance (avoid O(n) on every move)
 let cachedPlayerCount = 0;
 
+// Periodic full state sync to fix desync
+setInterval(() => {
+  if (cachedPlayerCount > 0) {
+    io.emit('full-state-sync', {
+      players: gameState.players,
+      ball: gameState.ball,
+      scores: gameState.scores,
+      timestamp: Date.now()
+    });
+  }
+}, 2000); // Every 2 seconds
+
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
@@ -224,7 +236,7 @@ io.on('connection', (socket) => {
         p.invisible = data.i;
         p.giant = data.g;
 
-        socket.volatile.broadcast.emit('m', { 
+        socket.broadcast.emit('m', { 
           id: socket.id, 
           p: data.p,
           r: data.r,
@@ -288,7 +300,7 @@ io.on('connection', (socket) => {
     if (changed) {
       ball.position = data.p;
       ball.velocity = data.v;
-      socket.volatile.broadcast.emit('b', { p: data.p, v: data.v });
+      socket.broadcast.emit('b', { p: data.p, v: data.v });
     }
   });
 
