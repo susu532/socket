@@ -26,23 +26,23 @@ const rateLimitBuckets = new Map();
 
 // Adaptive rate limits based on player count
 function getAdaptiveRate(playerCount) {
-  // 1-2 players: 30Hz, 3-6 players: 20Hz, 7+ players: 15Hz
-  if (playerCount <= 2) return 30
-  if (playerCount <= 6) return 20
-  return 15
+  // Increased rates: 1-2 players: 40Hz, 3-6 players: 30Hz, 7+ players: 25Hz
+  if (playerCount <= 2) return 40
+  if (playerCount <= 6) return 30
+  return 25
 }
 
 // Adaptive ball update rate based on velocity
 function getBallUpdateRate(velocity) {
-  if (!velocity || velocity.length !== 3) return 30;
+  if (!velocity || velocity.length !== 3) return 40;
   const speed = Math.sqrt(
     velocity[0] ** 2 +
     velocity[1] ** 2 +
     velocity[2] ** 2
   );
-  if (speed < 0.5) return 5;  // Slow: 5 Hz (200ms)
-  if (speed < 2.0) return 15; // Medium: 15 Hz (66ms)
-  return 30;                  // Fast: 30 Hz (33ms)
+  if (speed < 0.5) return 20;  // Slow: 20 Hz (50ms)
+  if (speed < 2.0) return 30; // Medium: 30 Hz (33ms)
+  return 40;                  // Fast: 40 Hz (25ms)
 }
 
 function checkRateLimit(socket, event, maxPerSecond = 30) {
@@ -118,7 +118,7 @@ function validateTeam(team) {
 }
 
 function hasPositionChanged(oldPos, newPos) {
-  const threshold = 0.01;
+  const threshold = 0.005; // Reduced from 0.01 to 0.005 for more sensitive detection
   return (
     Math.abs(oldPos[0] - newPos[0]) > threshold ||
     Math.abs(oldPos[1] - newPos[1]) > threshold ||
@@ -127,11 +127,11 @@ function hasPositionChanged(oldPos, newPos) {
 }
 
 function hasBallDataChanged(oldData, newData) {
-  const posThreshold = 0.05; // Increased from 0.01 to 0.05 (5cm precision)
-  const velThreshold = 0.01;
-  
+  const posThreshold = 0.02; // Reduced from 0.05 to 0.02 (2cm precision)
+  const velThreshold = 0.005; // Reduced from 0.01 to 0.005
+
   if (!oldData) return true;
-  
+
   return (
     Math.abs(oldData.position[0] - newData.position[0]) > posThreshold ||
     Math.abs(oldData.position[1] - newData.position[1]) > posThreshold ||
@@ -162,7 +162,8 @@ const gameState = {
     velocity: [0, 0, 0]
   },
   scores: { red: 0, blue: 0 },
-  lastGoalTime: 0
+  lastGoalTime: 0,
+  ballAuthority: null // Track which player has ball authority
 };
 
 // Cached player count for performance (avoid O(n) on every move)
@@ -204,6 +205,45 @@ function getClientUpdateRate(socketId) {
   }
 }
 
+// Ball authority management
+function getBallAuthority() {
+  if (!gameState.ballAuthority || !gameState.players[gameState.ballAuthority]) {
+    const playerIds = Object.keys(gameState.players);
+    if (playerIds.length === 0) {
+      gameState.ballAuthority = null;
+      return null;
+    }
+    gameState.ballAuthority = playerIds.sort()[0];
+  }
+  return gameState.ballAuthority;
+}
+
+function reassignBallAuthority() {
+  const playerIds = Object.keys(gameState.players);
+  if (playerIds.length === 0) {
+    gameState.ballAuthority = null;
+    return null;
+  }
+  const oldAuthority = gameState.ballAuthority;
+  gameState.ballAuthority = playerIds.sort()[0];
+  console.log(`Ball authority reassigned from ${oldAuthority} to ${gameState.ballAuthority}`);
+  io.emit('ball-authority', gameState.ballAuthority);
+  return gameState.ballAuthority;
+}
+
+// Periodic full state sync to fix desync
+setInterval(() => {
+  if (cachedPlayerCount > 0) {
+    io.emit('full-state-sync', {
+      players: gameState.players,
+      ball: gameState.ball,
+      scores: gameState.scores,
+      ballAuthority: getBallAuthority(),
+      timestamp: Date.now()
+    });
+  }
+}, 2500); // Every 2.5 seconds
+
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
@@ -240,17 +280,23 @@ io.on('connection', (socket) => {
     // Update cached player count
     cachedPlayerCount = Object.keys(gameState.players).length;
 
+    // Update ball authority if this is first player
+    if (!gameState.ballAuthority) {
+      reassignBallAuthority();
+    }
+
     // Send game state to new player
-    socket.emit('init', { 
-      id: socket.id, 
-      players: gameState.players, 
-      ball: gameState.ball, 
-      scores: gameState.scores 
+    socket.emit('init', {
+      id: socket.id,
+      players: gameState.players,
+      ball: gameState.ball,
+      scores: gameState.scores,
+      ballAuthority: getBallAuthority()
     });
 
     // Notify others
     socket.broadcast.emit('player-joined', gameState.players[socket.id]);
-    
+
     console.log(`Player ${socket.id} joined game with character: ${character}`);
   });
 
@@ -296,8 +342,8 @@ io.on('connection', (socket) => {
         p.invisible = data.i;
         p.giant = data.g;
 
-        socket.volatile.broadcast.emit('m', { 
-          id: socket.id, 
+        socket.broadcast.emit('m', {
+          id: socket.id,
           p: data.p,
           r: data.r,
           i: data.i,
@@ -360,7 +406,7 @@ io.on('connection', (socket) => {
     if (changed) {
       ball.position = data.p;
       ball.velocity = data.v;
-      socket.volatile.broadcast.emit('b', { p: data.p, v: data.v });
+      socket.broadcast.emit('b', { p: data.p, v: data.v });
     }
   });
 
@@ -448,6 +494,11 @@ io.on('connection', (socket) => {
       clientQuality.delete(socket.id);
       rateLimitBreaches.delete(socket.id);
 
+      // Reassign ball authority if the authority player left
+      if (gameState.ballAuthority === socket.id) {
+        reassignBallAuthority();
+      }
+
       io.emit('player-left', socket.id);
 
       // Reset game if empty
@@ -456,6 +507,7 @@ io.on('connection', (socket) => {
         gameState.ball.position = [0, 0.5, 0];
         gameState.ball.velocity = [0, 0, 0];
         gameState.scores = { red: 0, blue: 0 };
+        gameState.ballAuthority = null;
       }
     }
   };
