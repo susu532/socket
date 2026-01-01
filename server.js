@@ -71,6 +71,15 @@ function checkRateLimit(socket, event, maxPerSecond = 30) {
   }
 
   if (data.count >= maxPerSecond) {
+    // ADD: Track rate limit breach
+    const breaches = (rateLimitBreaches.get(socket.id) || 0) + 1;
+    rateLimitBreaches.set(socket.id, breaches);
+
+    // Log if excessive
+    if (breaches % 10 === 0) {
+      console.warn(`Rate limit breach ${breaches} from ${socket.id} for ${event}`);
+    }
+
     return false;
   }
 
@@ -148,7 +157,10 @@ function getRandomPlayerColor(socketId) {
 // Single Game State
 const gameState = {
   players: {},
-  ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
+  ball: {
+    position: Float32Array.of(0, 0.5, 0),
+    velocity: Float32Array.of(0, 0, 0)
+  },
   scores: { red: 0, blue: 0 },
   lastGoalTime: 0
 };
@@ -156,12 +168,56 @@ const gameState = {
 // Cached player count for performance (avoid O(n) on every move)
 let cachedPlayerCount = 0;
 
+// Track per-client connection quality for adaptive rates
+const clientQuality = new Map(); // socketId -> { ping: number, quality: string }
+
+// Track rate limit breaches per player
+const rateLimitBreaches = new Map(); // socketId -> count
+
+// Validate player movement to prevent speed hacks/teleportation
+function validatePlayerMovement(oldPos, newPos, deltaTime) {
+  const dx = newPos[0] - oldPos[0];
+  const dy = newPos[1] - oldPos[1];
+  const dz = newPos[2] - oldPos[2];
+  const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+  // Max speed: 15 m/s with power-ups (generous allowance)
+  const maxSpeed = 15;
+  const maxDistance = maxSpeed * deltaTime;
+
+  // Allow movement if within reasonable distance or small errors (< 0.5 units)
+  return distance <= maxDistance || distance < 0.5;
+}
+
+// Get adaptive update rate based on client connection quality
+function getClientUpdateRate(socketId) {
+  const qualityData = clientQuality.get(socketId);
+  if (!qualityData) return 30;
+
+  const quality = qualityData.quality;
+  switch(quality) {
+    case 'poor': return 10;  // 10 Hz for poor connections
+    case 'fair': return 20;  // 20 Hz for fair
+    case 'good': return 25;  // 25 Hz for good
+    case 'excellent': return 30; // 30 Hz for excellent
+    default: return 20;
+  }
+}
+
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
 
   // Ping-pong for latency measurement
   socket.on('ping', (timestamp) => {
-    socket.emit('pong', timestamp)
+    const pingTime = Date.now() - timestamp;
+    socket.emit('pong', timestamp);
+
+    // ADD: Track and categorize connection quality
+    const quality = pingTime < 100 ? 'excellent' :
+                   pingTime < 200 ? 'good' :
+                   pingTime < 300 ? 'fair' : 'poor';
+
+    clientQuality.set(socket.id, { ping: pingTime, quality });
   })
 
   // Handle joining the game
@@ -200,8 +256,11 @@ io.on('connection', (socket) => {
 
   // Handle player movement with change detection and rate limiting
   socket.on('m', (data) => {
-    const maxRate = getAdaptiveRate(cachedPlayerCount);
-    
+    // ADD: Use minimum of player-wide rate and client-specific rate
+    const playerRate = getAdaptiveRate(cachedPlayerCount);
+    const clientRate = getClientUpdateRate(socket.id);
+    const maxRate = Math.min(playerRate, clientRate);
+
     if (!checkRateLimit(socket, 'm', maxRate)) {
       return;
     }
@@ -212,7 +271,20 @@ io.on('connection', (socket) => {
       // Validate input - data.p is position, data.r is rotation
       if (!validatePosition(data.p)) return;
       if (!validateRotation(data.r)) return;
-      
+
+      // ADD: Validate movement is within reasonable speed limits
+      const deltaTime = 0.033; // Approx 30 Hz update rate
+      if (!validatePlayerMovement(p.position, data.p, deltaTime)) {
+        // Log warning but don't kick (may be legitimate lag)
+        const distance = Math.sqrt(
+          Math.pow(data.p[0] - p.position[0], 2) +
+          Math.pow(data.p[1] - p.position[1], 2) +
+          Math.pow(data.p[2] - p.position[2], 2)
+        );
+        console.warn(`Suspicious movement from ${socket.id}: ${distance.toFixed(2)} units in ${deltaTime}s`);
+        return; // Reject invalid movement
+      }
+
       // Check if data changed (Hybrid: strict rotation, loose position)
       const rotationChanged = p.rotation !== data.r;
       const positionChanged = hasPositionChanged(p.position, data.p);
@@ -299,14 +371,31 @@ io.on('connection', (socket) => {
     if (now - gameState.lastGoalTime < 3000) return;
 
     if (gameState.scores[teamScored] !== undefined) {
+      // ADD: Validate ball is actually in goal area
+      const ball = gameState.ball;
+      const goalXThreshold = 11.2; // Goals at X = ±11, allow slight margin
+
+      const isInGoal = (teamScored === 'red' && ball.position[0] > goalXThreshold) ||
+                     (teamScored === 'blue' && ball.position[0] < -goalXThreshold);
+
+      if (!isInGoal) {
+        console.warn(`Invalid goal attempt from ${socket.id}: Ball not in goal area (X=${ball.position[0].toFixed(2)})`);
+        return; // Reject fake goal
+      }
+
       gameState.scores[teamScored]++;
       gameState.lastGoalTime = now;
-      io.emit('score-update', gameState.scores);
-      
+
+      // ADD: Combine score update and ball reset into single event
       setTimeout(() => {
-        gameState.ball.position = [0, 0.5, 0];
-        gameState.ball.velocity = [0, 0, 0];
-        io.emit('ball-reset', gameState.ball);
+        gameState.ball.position.set(0, 0.5, 0);
+        gameState.ball.velocity.set(0, 0, 0);
+        io.emit('goal-scored', {
+          scores: gameState.scores,
+          ball: gameState.ball,
+          team: teamScored,
+          timestamp: Date.now()
+        });
       }, 2000);
     }
   });
@@ -339,17 +428,33 @@ io.on('connection', (socket) => {
 
   const handleLeaveGame = () => {
     if (gameState.players[socket.id]) {
+      // ADD: Check for rate limit abuse before disconnect
+      const breaches = rateLimitBreaches.get(socket.id);
+      if (breaches && breaches > 50) {
+        console.log(`Kicking ${socket.id} for rate limit abuse (${breaches} breaches)`);
+        socket.disconnect();
+        // Cleanup abusive player data
+        rateLimitBreaches.delete(socket.id);
+        clientQuality.delete(socket.id);
+        return;
+      }
+
       delete gameState.players[socket.id];
 
       // Update cached player count
       cachedPlayerCount = Object.keys(gameState.players).length;
+
+      // ADD: Cleanup client quality tracking
+      clientQuality.delete(socket.id);
+      rateLimitBreaches.delete(socket.id);
 
       io.emit('player-left', socket.id);
 
       // Reset game if empty
       if (Object.keys(gameState.players).length === 0) {
         console.log(`Game empty. Resetting state.`);
-        gameState.ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+        gameState.ball.position = Float32Array.of(0, 0.5, 0);
+        gameState.ball.velocity = Float32Array.of(0, 0, 0);
         gameState.scores = { red: 0, blue: 0 };
       }
     }
@@ -371,7 +476,8 @@ setInterval(() => {
   // Reset game if empty for > 5 minutes
   if (cachedPlayerCount === 0 && now - gameState.lastGoalTime > 300000) {
     console.log(`Cleaned up empty game state`);
-    gameState.ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+    gameState.ball.position = Float32Array.of(0, 0.5, 0);
+    gameState.ball.velocity = Float32Array.of(0, 0, 0);
     gameState.scores = { red: 0, blue: 0 };
     gameState.lastGoalTime = now;
   }
