@@ -32,7 +32,7 @@ function getAdaptiveRate(playerCount) {
   return 15
 }
 
-function checkRateLimit(socket, event, maxPerSecond = 30, roomId) {
+function checkRateLimit(socket, event, maxPerSecond = 30) {
   const now = Date.now();
   const key = `${socket.id}-${event}`;
   
@@ -122,16 +122,13 @@ function getRandomPlayerColor(socketId) {
   return color;
 }
 
-// Room state
-const rooms = {};
-for (let i = 1; i <= 13; i++) {
-  rooms[`room${i}`] = {
-    players: {},
-    ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
-    scores: { red: 0, blue: 0 },
-    lastGoalTime: 0
-  };
-}
+// Single Game State
+const gameState = {
+  players: {},
+  ball: { position: [0, 0.5, 0], velocity: [0, 0, 0] },
+  scores: { red: 0, blue: 0 },
+  lastGoalTime: 0
+};
 
 io.on('connection', (socket) => {
   console.log('Player connected:', socket.id);
@@ -141,21 +138,10 @@ io.on('connection', (socket) => {
     socket.emit('pong', timestamp)
   })
 
-  // Handle joining a room
-  socket.on('join-room', ({ roomId, character }) => {
-    if (!rooms[roomId]) return;
-
-    // Leave previous room if any
-    if (socket.roomId) {
-      socket.leave(socket.roomId);
-    }
-
-    // Join new room
-    socket.join(roomId);
-    socket.roomId = roomId;
-
-    // Add player to room with cached color
-    rooms[roomId].players[socket.id] = {
+  // Handle joining the game
+  socket.on('join-game', ({ character }) => {
+    // Add player to game with cached color
+    gameState.players[socket.id] = {
       id: socket.id,
       position: [0, 1, 0],
       rotation: 0,
@@ -166,35 +152,34 @@ io.on('connection', (socket) => {
       lastGoalTime: Date.now()
     };
 
-    // Update room last activity
-    rooms[roomId].lastGoalTime = Date.now();
+    // Update last activity
+    gameState.lastGoalTime = Date.now();
 
-    // Send room state to new player
+    // Send game state to new player
     socket.emit('init', { 
       id: socket.id, 
-      players: rooms[roomId].players, 
-      ball: rooms[roomId].ball, 
-      scores: rooms[roomId].scores 
+      players: gameState.players, 
+      ball: gameState.ball, 
+      scores: gameState.scores 
     });
 
-    // Notify others in room
-    socket.to(roomId).emit('player-joined', rooms[roomId].players[socket.id]);
+    // Notify others
+    socket.broadcast.emit('player-joined', gameState.players[socket.id]);
     
-    console.log(`Player ${socket.id} joined ${roomId} with character: ${character}`);
+    console.log(`Player ${socket.id} joined game with character: ${character}`);
   });
 
   // Handle player movement with change detection and rate limiting
   socket.on('move', (data) => {
-    const roomId = socket.roomId
-    const playerCount = roomId && rooms[roomId] ? Object.keys(rooms[roomId].players).length : 2
-    const maxRate = getAdaptiveRate(playerCount)
+    const playerCount = Object.keys(gameState.players).length;
+    const maxRate = getAdaptiveRate(playerCount);
     
-    if (!checkRateLimit(socket, 'move', maxRate, roomId)) {
+    if (!checkRateLimit(socket, 'move', maxRate)) {
       return;
     }
     
-    if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
-      const p = rooms[roomId].players[socket.id];
+    if (gameState.players[socket.id]) {
+      const p = gameState.players[socket.id];
       
       // Validate input
       if (!validatePosition(data.position)) return;
@@ -216,7 +201,7 @@ io.on('connection', (socket) => {
         p.giant = data.giant;
         p.character = data.character;
 
-        socket.volatile.to(roomId).emit('player-move', { 
+        socket.volatile.broadcast.emit('player-move', { 
           id: socket.id, 
           ...data
         });
@@ -226,53 +211,43 @@ io.on('connection', (socket) => {
 
   // Handle ball update with change detection
   socket.on('ball-update', (data) => {
-    const roomId = socket.roomId;
-    if (roomId && rooms[roomId]) {
-      // Validate ball data
-      if (!validatePosition(data.position) || !validatePosition(data.velocity)) return;
-      
-      const ball = rooms[roomId].ball;
-      
-      // Only update if ball data changed significantly
-      if (hasBallDataChanged(ball, data)) {
-        ball.position = data.position;
-        ball.velocity = data.velocity;
-        socket.volatile.to(roomId).emit('ball-update', ball);
-      }
+    // Validate ball data
+    if (!validatePosition(data.position) || !validatePosition(data.velocity)) return;
+    
+    const ball = gameState.ball;
+    
+    // Only update if ball data changed significantly
+    if (hasBallDataChanged(ball, data)) {
+      ball.position = data.position;
+      ball.velocity = data.velocity;
+      socket.volatile.broadcast.emit('ball-update', ball);
     }
   });
 
   // Handle goal
   socket.on('goal', (teamScored) => {
-    const roomId = socket.roomId;
-    if (!roomId || !rooms[roomId]) return;
-
-    const room = rooms[roomId];
     const now = Date.now();
 
-    if (now - room.lastGoalTime < 3000) return;
+    if (now - gameState.lastGoalTime < 3000) return;
 
-    if (room.scores[teamScored] !== undefined) {
-      room.scores[teamScored]++;
-      room.lastGoalTime = now;
-      io.to(roomId).emit('score-update', room.scores);
+    if (gameState.scores[teamScored] !== undefined) {
+      gameState.scores[teamScored]++;
+      gameState.lastGoalTime = now;
+      io.emit('score-update', gameState.scores);
       
       setTimeout(() => {
-        room.ball.position = [0, 0.5, 0];
-        room.ball.velocity = [0, 0, 0];
-        io.to(roomId).emit('ball-reset', room.ball);
+        gameState.ball.position = [0, 0.5, 0];
+        gameState.ball.velocity = [0, 0, 0];
+        io.emit('ball-reset', gameState.ball);
       }, 2000);
     }
   });
 
   // Handle reset scores
   socket.on('reset-scores', () => {
-    const roomId = socket.roomId;
-    if (roomId && rooms[roomId]) {
-      rooms[roomId].scores.red = 0;
-      rooms[roomId].scores.blue = 0;
-      io.to(roomId).emit('score-update', rooms[roomId].scores);
-    }
+    gameState.scores.red = 0;
+    gameState.scores.blue = 0;
+    io.emit('score-update', gameState.scores);
   });
 
   // Handle chat messages with rate limiting
@@ -281,70 +256,61 @@ io.on('connection', (socket) => {
       return;
     }
     
-    const roomId = socket.roomId;
-    if (roomId) {
-      // Basic message validation
-      if (!data.message || typeof data.message !== 'string') return;
-      if (data.message.length > 500) return;
-      
-      io.to(roomId).emit('chat-message', {
-        playerId: socket.id,
-        playerName: data.playerName || 'Anonymous',
-        team: data.team || '',
-        message: data.message,
-        timestamp: Date.now()
-      });
-    }
+    // Basic message validation
+    if (!data.message || typeof data.message !== 'string') return;
+    if (data.message.length > 500) return;
+    
+    io.emit('chat-message', {
+      playerId: socket.id,
+      playerName: data.playerName || 'Anonymous',
+      team: data.team || '',
+      message: data.message,
+      timestamp: Date.now()
+    });
   });
 
-  const handleLeaveRoom = () => {
-    const roomId = socket.roomId;
-    if (roomId && rooms[roomId] && rooms[roomId].players[socket.id]) {
-      delete rooms[roomId].players[socket.id];
-      io.to(roomId).emit('player-left', socket.id);
+  const handleLeaveGame = () => {
+    if (gameState.players[socket.id]) {
+      delete gameState.players[socket.id];
+      io.emit('player-left', socket.id);
 
-      // Reset room if empty
-      if (Object.keys(rooms[roomId].players).length === 0) {
-        console.log(`Room ${roomId} empty. Resetting state.`);
-        rooms[roomId].ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
-        rooms[roomId].scores = { red: 0, blue: 0 };
+      // Reset game if empty
+      if (Object.keys(gameState.players).length === 0) {
+        console.log(`Game empty. Resetting state.`);
+        gameState.ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+        gameState.scores = { red: 0, blue: 0 };
       }
-      
-      socket.leave(roomId);
-      socket.roomId = null;
     }
   };
 
-  socket.on('leave-room', handleLeaveRoom);
+  socket.on('leave-game', handleLeaveGame);
 
   // Handle disconnect
   socket.on('disconnect', () => {
     console.log('Player disconnected:', socket.id);
-    handleLeaveRoom();
+    handleLeaveGame();
   });
 });
 
-// Room cleanup system - clean up inactive rooms every 5 minutes
+// Game cleanup system - clean up inactive game state every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [roomId, room] of Object.entries(rooms)) {
-    const playerCount = Object.keys(room.players).length;
-    
-    // Reset room if empty for > 5 minutes
-    if (playerCount === 0 && now - room.lastGoalTime > 300000) {
-      console.log(`Cleaned up empty room: ${roomId}`);
-      rooms[roomId].ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
-      rooms[roomId].scores = { red: 0, blue: 0 };
-      rooms[roomId].lastGoalTime = now;
-    }
-    
-    // Reset scores if room has been inactive for 10 minutes
-    if (playerCount > 0 && now - room.lastGoalTime > 600000) {
-      console.log(`Reset scores for inactive room: ${roomId}`);
-      rooms[roomId].scores = { red: 0, blue: 0 };
-      io.to(roomId).emit('score-update', rooms[roomId].scores);
-      rooms[roomId].lastGoalTime = now;
-    }
+  const playerCount = Object.keys(gameState.players).length;
+  
+  // Reset game if empty for > 5 minutes
+  if (playerCount === 0 && now - gameState.lastGoalTime > 300000) {
+    console.log(`Cleaned up empty game state`);
+    gameState.ball = { position: [0, 0.5, 0], velocity: [0, 0, 0] };
+    gameState.scores = { red: 0, blue: 0 };
+    gameState.lastGoalTime = now;
+  }
+  
+  // Reset scores if game has been inactive for 10 minutes
+  if (playerCount > 0 && now - gameState.lastGoalTime > 600000) {
+    console.log(`Reset scores for inactive game`);
+    gameState.scores = { red: 0, blue: 0 };
+    io.emit('score-update', gameState.scores);
+    gameState.lastGoalTime = now;
   }
 }, 300000);
 
