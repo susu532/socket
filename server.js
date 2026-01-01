@@ -158,8 +158,8 @@ function getRandomPlayerColor(socketId) {
 const gameState = {
   players: {},
   ball: {
-    position: Float32Array.of(0, 0.5, 0),
-    velocity: Float32Array.of(0, 0, 0)
+    position: [0, 0.5, 0], // Regular array for network serialization
+    velocity: [0, 0, 0]
   },
   scores: { red: 0, blue: 0 },
   lastGoalTime: 0
@@ -388,8 +388,8 @@ io.on('connection', (socket) => {
 
       // ADD: Combine score update and ball reset into single event
       setTimeout(() => {
-        gameState.ball.position.set(0, 0.5, 0);
-        gameState.ball.velocity.set(0, 0, 0);
+        gameState.ball.position = [0, 0.5, 0];
+        gameState.ball.velocity = [0, 0, 0];
         io.emit('goal-scored', {
           scores: gameState.scores,
           ball: gameState.ball,
@@ -453,8 +453,8 @@ io.on('connection', (socket) => {
       // Reset game if empty
       if (Object.keys(gameState.players).length === 0) {
         console.log(`Game empty. Resetting state.`);
-        gameState.ball.position = Float32Array.of(0, 0.5, 0);
-        gameState.ball.velocity = Float32Array.of(0, 0, 0);
+        gameState.ball.position = [0, 0.5, 0];
+        gameState.ball.velocity = [0, 0, 0];
         gameState.scores = { red: 0, blue: 0 };
       }
     }
@@ -476,8 +476,8 @@ setInterval(() => {
   // Reset game if empty for > 5 minutes
   if (cachedPlayerCount === 0 && now - gameState.lastGoalTime > 300000) {
     console.log(`Cleaned up empty game state`);
-    gameState.ball.position = Float32Array.of(0, 0.5, 0);
-    gameState.ball.velocity = Float32Array.of(0, 0, 0);
+    gameState.ball.position = [0, 0.5, 0];
+    gameState.ball.velocity = [0, 0, 0];
     gameState.scores = { red: 0, blue: 0 };
     gameState.lastGoalTime = now;
   }
