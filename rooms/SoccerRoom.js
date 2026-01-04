@@ -2,7 +2,7 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState } from '../schema/GameState.js'
 
-const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
+const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
 const STATE_SYNC_RATE = 1000 / 30   // 30Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 
@@ -219,24 +219,78 @@ export class SoccerRoom extends Room {
     const { moveX, moveZ, jump, rotY } = data
 
     // Calculate new position based on input
-    const speed = 8 * (1 / 45) // MOVE_SPEED * deltaTime
+    const dt = 1 / 60
+    const speed = 8 * dt
     const currentPos = body.translation()
 
     let newX = currentPos.x + (moveX || 0) * speed
     let newZ = currentPos.z + (moveZ || 0) * speed
-    let newY = currentPos.y
+    
+    // Vertical movement (Gravity + Jump)
+    const GRAVITY = 20
+    const JUMP_FORCE = 8
+    const GROUND_Y = 0.1
+    const MAX_JUMPS = 2
+    const DOUBLE_JUMP_MULTIPLIER = 0.8
 
-    // Simple jump (if on ground)
-    if (jump && currentPos.y <= 0.2) {
-      newY = 1 // Simple jump impulse visual
+    // Apply gravity to vertical velocity
+    player.vy = (player.vy || 0) - GRAVITY * dt
+
+    // Ground check for jump reset
+    if (currentPos.y <= GROUND_Y + 0.1 && player.vy <= 0) {
+      player.jumpCount = 0
+    }
+
+    // Handle Jump
+    if (jump) {
+      // We need to detect "fresh" jump press. 
+      // Since input is continuous state, we might need a flag or sequence.
+      // But for now, let's assume 'jump' is true only when pressed.
+      // Actually, input.jump is likely held. We need edge detection or cooldown.
+      // Client sends 'jump' as boolean. 
+      // Ideally client sends 'jump' only on press frame, or we track 'prevJump'.
+      // But we don't have prevJump here easily.
+      // Let's rely on client sending jump=true only when it wants to jump?
+      // No, client sends input state.
+      // We need to store prevJump in player state or body userData.
+      
+      // For now, let's assume client sends jump=true for a duration.
+      // We can use a cooldown or check if we already processed this jump sequence?
+      // The client sends 'seq'. We could track lastJumpSeq.
+      
+      // SIMPLIFICATION: Just check if we can jump.
+      // But if we process 60Hz, holding jump will trigger multiple jumps instantly.
+      // We need a way to know it's a NEW jump.
+      // Let's use a cooldown or check if we are already jumping upwards?
+      
+      // BETTER: Client sends "jump" as a trigger?
+      // Client code: `jump: input.jump`. Input is likely "isPressed".
+      // So we need edge detection.
+      
+      if (!player.prevJump && player.jumpCount < MAX_JUMPS) {
+        if (player.jumpCount === 0) {
+           player.vy = JUMP_FORCE
+        } else {
+           player.vy = JUMP_FORCE * DOUBLE_JUMP_MULTIPLIER
+        }
+        player.jumpCount++
+      }
+    }
+    player.prevJump = jump // Store for next frame
+
+    // Apply vertical velocity
+    let newY = currentPos.y + player.vy * dt
+
+    // Ground collision
+    if (newY < GROUND_Y) {
+      newY = GROUND_Y
+      player.vy = 0
+      player.jumpCount = 0
     }
 
     // Bounds
     newX = Math.max(-14.7, Math.min(14.7, newX))
     newZ = Math.max(-9.7, Math.min(9.7, newZ))
-
-    // Ground check
-    if (newY < 0.1) newY = 0.1
 
     // Update kinematic body
     body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
