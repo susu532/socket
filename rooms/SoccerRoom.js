@@ -167,8 +167,9 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.1, 0.4, 0.1)
-      .setTranslation(0, 0.4, 0)
+    const collider = RAPIER.ColliderDesc.capsule(0.3, 0.25)
+      .setTranslation(0, 0.55, 0)
+      .setRestitution(0.3)
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
