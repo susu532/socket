@@ -24,6 +24,9 @@ export class SoccerRoom extends Room {
     // Initialize state
     this.setState(new GameState())
 
+    // Set patch rate (30Hz)
+    this.setPatchRate(1000 / 30)
+
     // Initialize Rapier
     await RAPIER.init()
     this.world = new RAPIER.World({ x: 0, y: -20, z: 0 })
