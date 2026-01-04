@@ -17,6 +17,7 @@ export class PlayerState extends Schema {
     this.invisible = false
     this.giant = false
     this.jumpCount = 0
+    this.sessionId = ''
     
     // Server-only input state (not synced)
     this.inputX = 0
@@ -40,7 +41,8 @@ defineTypes(PlayerState, {
   character: 'string',
   invisible: 'boolean',
   giant: 'boolean',
-  jumpCount: 'number'
+  jumpCount: 'number',
+  sessionId: 'string'
 })
 
 // Ball state

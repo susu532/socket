@@ -188,6 +188,7 @@ export class SoccerRoom extends Room {
     player.x = spawn.x
     player.y = spawn.y
     player.z = spawn.z
+    player.sessionId = client.sessionId
 
     this.state.players.set(client.sessionId, player)
 
@@ -374,7 +375,8 @@ export class SoccerRoom extends Room {
     this.broadcast('game-reset', {})
   }
 
-  physicsUpdate(deltaTime) {
+  physicsUpdate(deltaTimeMs) {
+    const deltaTime = deltaTimeMs / 1000
     // 1. Update players from stored inputs
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
