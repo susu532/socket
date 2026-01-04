@@ -365,10 +365,22 @@ export class SoccerRoom extends Room {
       const body = this.playerBodies.get(sessionId)
       if (body) {
         const spawnX = player.team === 'red' ? -6 : 6
-        body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
+        const spawnPos = { x: spawnX, y: 0.1, z: 0 }
+        
+        // Immediate teleport
+        body.setTranslation(spawnPos, true)
+        body.setNextKinematicTranslation(spawnPos) // Also set next for safety
+        
         player.x = spawnX
         player.y = 0.1
         player.z = 0
+        player.vx = 0
+        player.vy = 0
+        player.vz = 0
+        player.jumpCount = 0
+        player.inputX = 0
+        player.inputZ = 0
+        player.inputJump = false
       }
     })
 
@@ -377,10 +389,20 @@ export class SoccerRoom extends Room {
 
   physicsUpdate(deltaTimeMs) {
     const deltaTime = deltaTimeMs / 1000
-    // 1. Update players from stored inputs
+    
+    // 1. Update players from stored inputs (only if playing)
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
       if (!body) return
+
+      if (this.state.gamePhase !== 'playing') {
+        // Just sync state from body during non-playing phases
+        const pos = body.translation()
+        player.x = pos.x
+        player.y = pos.y
+        player.z = pos.z
+        return
+      }
 
       const x = player.inputX || 0
       const z = player.inputZ || 0
