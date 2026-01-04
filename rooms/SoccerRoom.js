@@ -167,9 +167,8 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.capsule(0.3, 0.25)
-      .setTranslation(0, 0.55, 0)
-      .setRestitution(0.3)
+    const collider = RAPIER.ColliderDesc.cuboid(0.2, 0.4, 0.2)
+      .setTranslation(0, 0.4, 0)
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
@@ -225,7 +224,6 @@ export class SoccerRoom extends Room {
     player.inputZ = data.z || 0
     player.inputJump = data.jump || false
     player.inputRotY = data.rotY || 0
-    player.inputSeq = data.seq || 0
   }
 
   handleKick(client, data) {
@@ -367,22 +365,10 @@ export class SoccerRoom extends Room {
       const body = this.playerBodies.get(sessionId)
       if (body) {
         const spawnX = player.team === 'red' ? -6 : 6
-        const spawnPos = { x: spawnX, y: 0.1, z: 0 }
-        
-        // Immediate teleport
-        body.setTranslation(spawnPos, true)
-        body.setNextKinematicTranslation(spawnPos) // Also set next for safety
-        
+        body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
         player.x = spawnX
         player.y = 0.1
         player.z = 0
-        player.vx = 0
-        player.vy = 0
-        player.vz = 0
-        player.jumpCount = 0
-        player.inputX = 0
-        player.inputZ = 0
-        player.inputJump = false
       }
     })
 
@@ -391,20 +377,10 @@ export class SoccerRoom extends Room {
 
   physicsUpdate(deltaTimeMs) {
     const deltaTime = deltaTimeMs / 1000
-    
-    // 1. Update players from stored inputs (only if playing)
+    // 1. Update players from stored inputs
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
       if (!body) return
-
-      if (this.state.gamePhase !== 'playing') {
-        // Just sync state from body during non-playing phases
-        const pos = body.translation()
-        player.x = pos.x
-        player.y = pos.y
-        player.z = pos.z
-        return
-      }
 
       const x = player.inputX || 0
       const z = player.inputZ || 0
@@ -461,7 +437,6 @@ export class SoccerRoom extends Room {
       player.y = newY
       player.z = newZ
       player.rotY = rotY
-      player.lastProcessedInputSeq = player.inputSeq
     })
 
     // 2. Step physics world
