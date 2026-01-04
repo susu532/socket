@@ -41,7 +41,6 @@ defineTypes(PlayerState, {
   character: 'string',
   invisible: 'boolean',
   giant: 'boolean',
-  jumpCount: 'number',
   sessionId: 'string'
 })
 

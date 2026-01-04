@@ -2,8 +2,8 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState } from '../schema/GameState.js'
 
-const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
-const STATE_SYNC_RATE = 1000 / 30   // 30Hz
+const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
+const STATE_SYNC_RATE = 1000 / 20   // 20Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 
 export class SoccerRoom extends Room {
@@ -24,8 +24,8 @@ export class SoccerRoom extends Room {
     // Initialize state
     this.setState(new GameState())
 
-    // Set patch rate (30Hz)
-    this.setPatchRate(1000 / 30)
+    // Set patch rate (20Hz)
+    this.setPatchRate(1000 / 20)
 
     // Initialize Rapier
     await RAPIER.init()
@@ -391,10 +391,9 @@ export class SoccerRoom extends Room {
       const currentPos = body.translation()
 
       // Smooth horizontal velocity
-      player.vx = player.vx || 0
-      player.vz = player.vz || 0
-      player.vx = player.vx + (x * speed - player.vx) * 0.3
-      player.vz = player.vz + (z * speed - player.vz) * 0.3
+      // Direct velocity (snappy movement)
+      player.vx = x * speed
+      player.vz = z * speed
 
       let newX = currentPos.x + player.vx * deltaTime
       let newZ = currentPos.z + player.vz * deltaTime
@@ -432,11 +431,11 @@ export class SoccerRoom extends Room {
       // Update physics body
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
 
-      // Update state for sync
-      player.x = newX
-      player.y = newY
-      player.z = newZ
-      player.rotY = rotY
+      // Update state for sync (rounded to 3 decimal places)
+      player.x = Math.round(newX * 1000) / 1000
+      player.y = Math.round(newY * 1000) / 1000
+      player.z = Math.round(newZ * 1000) / 1000
+      player.rotY = Math.round(rotY * 1000) / 1000
     })
 
     // 2. Step physics world
@@ -451,16 +450,16 @@ export class SoccerRoom extends Room {
       const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-      this.state.ball.x = pos.x
-      this.state.ball.y = pos.y
-      this.state.ball.z = pos.z
-      this.state.ball.vx = vel.x
-      this.state.ball.vy = vel.y
-      this.state.ball.vz = vel.z
-      this.state.ball.rx = rot.x
-      this.state.ball.ry = rot.y
-      this.state.ball.rz = rot.z
-      this.state.ball.rw = rot.w
+      this.state.ball.x = Math.round(pos.x * 1000) / 1000
+      this.state.ball.y = Math.round(pos.y * 1000) / 1000
+      this.state.ball.z = Math.round(pos.z * 1000) / 1000
+      this.state.ball.vx = Math.round(vel.x * 1000) / 1000
+      this.state.ball.vy = Math.round(vel.y * 1000) / 1000
+      this.state.ball.vz = Math.round(vel.z * 1000) / 1000
+      this.state.ball.rx = Math.round(rot.x * 1000) / 1000
+      this.state.ball.ry = Math.round(rot.y * 1000) / 1000
+      this.state.ball.rz = Math.round(rot.z * 1000) / 1000
+      this.state.ball.rw = Math.round(rot.w * 1000) / 1000
 
       // Limit angular velocity
       const angvel = this.ballBody.angvel()
