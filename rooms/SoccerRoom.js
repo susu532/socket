@@ -1,6 +1,6 @@
 import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
-import { GameState, PlayerState, BallState } from '../schema/GameState.js'
+import { GameState, PlayerState } from '../schema/GameState.js'
 
 const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
 const STATE_SYNC_RATE = 1000 / 30   // 30Hz
@@ -47,6 +47,7 @@ export class SoccerRoom extends Room {
     this.onMessage('chat', (client, data) => this.handleChat(client, data))
     this.onMessage('start-game', (client) => this.handleStartGame(client))
     this.onMessage('end-game', (client) => this.handleEndGame(client))
+    this.onMessage('update-state', (client, data) => this.handleUpdateState(client, data))
   }
 
   createArena() {
@@ -300,6 +301,17 @@ export class SoccerRoom extends Room {
       message: data.message,
       time: Date.now()
     })
+  }
+
+  handleUpdateState(client, data) {
+    const player = this.state.players.get(client.sessionId)
+    if (!player) return
+
+    const { key, value } = data
+    // Only allow specific keys to be updated by client
+    if (['invisible', 'giant'].includes(key)) {
+      player[key] = value
+    }
   }
 
   handleStartGame(client) {
