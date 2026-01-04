@@ -219,15 +219,21 @@ export class SoccerRoom extends Room {
     const body = this.playerBodies.get(client.sessionId)
     if (!player || !body) return
 
-    const { moveX, moveZ, jump, rotY } = data
+    const { x, z, jump, rotY } = data
 
     // Calculate new position based on input
     const dt = 1 / 60
-    const speed = 8 * dt
+    const speed = 8
     const currentPos = body.translation()
 
-    let newX = currentPos.x + (moveX || 0) * speed
-    let newZ = currentPos.z + (moveZ || 0) * speed
+    // Smooth horizontal velocity - matches client lerp (0.3)
+    player.vx = player.vx || 0
+    player.vz = player.vz || 0
+    player.vx = player.vx + ( (x || 0) * speed - player.vx ) * 0.3
+    player.vz = player.vz + ( (z || 0) * speed - player.vz ) * 0.3
+
+    let newX = currentPos.x + player.vx * dt
+    let newZ = currentPos.z + player.vz * dt
     
     // Vertical movement (Gravity + Jump)
     const GRAVITY = 20
