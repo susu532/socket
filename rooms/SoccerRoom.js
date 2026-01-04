@@ -316,12 +316,13 @@ export class SoccerRoom extends Room {
     const dz = ballPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if (dist < 2.5) {
+    if (dist < 3.5) {
       const { impulseX, impulseY, impulseZ } = data
 
-      this.ballBody.applyImpulse({ x: impulseX, y: impulseY + 2, z: impulseZ }, true)
+      // Apply impulse with a slight vertical boost for better feel
+      this.ballBody.applyImpulse({ x: impulseX, y: impulseY + 3, z: impulseZ }, true)
 
-      // Broadcast kick visual
+      // Broadcast kick visual to all clients
       this.broadcast('ball-kicked', { playerId: client.sessionId })
     }
   }
