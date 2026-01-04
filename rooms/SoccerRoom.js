@@ -308,7 +308,7 @@ export class SoccerRoom extends Room {
     player.x = newX
     player.y = newY
     player.z = newZ
-    player.rotY = rotY || player.rotY
+    player.rotY = rotY || 0
   }
 
   handleKick(client, data) {
