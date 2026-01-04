@@ -325,8 +325,11 @@ export class SoccerRoom extends Room {
       // Apply impulse with a slight vertical boost for better feel
       this.ballBody.applyImpulse({ x: impulseX, y: impulseY + 3, z: impulseZ }, true)
 
-      // Broadcast kick visual to all clients
-      this.broadcast('ball-kicked', { playerId: client.sessionId })
+      // Broadcast kick visual to all clients with impulse for prediction
+      this.broadcast('ball-kicked', { 
+        playerId: client.sessionId,
+        impulse: { x: impulseX, y: impulseY + 3, z: impulseZ }
+      })
     }
   }
 
