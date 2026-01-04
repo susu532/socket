@@ -17,6 +17,13 @@ export class PlayerState extends Schema {
     this.invisible = false
     this.giant = false
     this.jumpCount = 0
+    
+    // Server-only input state (not synced)
+    this.inputX = 0
+    this.inputZ = 0
+    this.inputJump = false
+    this.inputRotY = 0
+    this.prevJump = false
   }
 }
 
