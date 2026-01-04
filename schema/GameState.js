@@ -24,7 +24,11 @@ export class PlayerState extends Schema {
     this.inputZ = 0
     this.inputJump = false
     this.inputRotY = 0
+    this.inputSeq = 0
     this.prevJump = false
+    
+    // Sequence number for reconciliation
+    this.lastProcessedInputSeq = 0
   }
 }
 
@@ -42,7 +46,8 @@ defineTypes(PlayerState, {
   invisible: 'boolean',
   giant: 'boolean',
   jumpCount: 'number',
-  sessionId: 'string'
+  sessionId: 'string',
+  lastProcessedInputSeq: 'number'
 })
 
 // Ball state

@@ -225,6 +225,7 @@ export class SoccerRoom extends Room {
     player.inputZ = data.z || 0
     player.inputJump = data.jump || false
     player.inputRotY = data.rotY || 0
+    player.inputSeq = data.seq || 0
   }
 
   handleKick(client, data) {
@@ -460,6 +461,7 @@ export class SoccerRoom extends Room {
       player.y = newY
       player.z = newZ
       player.rotY = rotY
+      player.lastProcessedInputSeq = player.inputSeq
     })
 
     // 2. Step physics world
