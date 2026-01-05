@@ -121,7 +121,7 @@ export class SoccerRoom extends Room {
     postPositions.forEach(([x, z]) => {
       const desc = RAPIER.ColliderDesc.cylinder(2, 0.06)
         .setTranslation(x, 2, z)
-        .setRestitution(0.8)
+        
       this.world.createCollider(desc)
     })
 
@@ -131,7 +131,7 @@ export class SoccerRoom extends Room {
       const desc = RAPIER.ColliderDesc.cylinder(3, 0.06)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
-        .setRestitution(0.8)
+        
       this.world.createCollider(desc)
     })
 
