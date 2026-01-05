@@ -2,8 +2,8 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 
-const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
-const STATE_SYNC_RATE = 1000 / 20   // 20Hz
+const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
+const STATE_SYNC_RATE = 1000 / 30   // 30Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 
 export class SoccerRoom extends Room {
@@ -34,8 +34,8 @@ export class SoccerRoom extends Room {
     // Initialize state
     this.setState(new GameState())
 
-    // Set patch rate (20Hz)
-    this.setPatchRate(1000 / 20)
+    // Set patch rate (30Hz)
+    this.setPatchRate(1000 / 30)
 
     // Initialize Rapier
     await RAPIER.init()
