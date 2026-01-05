@@ -25,6 +25,11 @@ export class PlayerState extends Schema {
     this.inputJump = false
     this.inputRotY = 0
     this.prevJump = false
+    
+    // Power-up modifiers
+    this.speedMultiplier = 1
+    this.jumpMultiplier = 1
+    this.kickMultiplier = 1
   }
 }
 
@@ -41,7 +46,30 @@ defineTypes(PlayerState, {
   character: 'string',
   invisible: 'boolean',
   giant: 'boolean',
-  sessionId: 'string'
+  sessionId: 'string',
+  speedMultiplier: 'number',
+  jumpMultiplier: 'number',
+  kickMultiplier: 'number'
+})
+
+// Power-up state
+export class PowerUpState extends Schema {
+  constructor() {
+    super()
+    this.id = ''
+    this.type = ''
+    this.x = 0
+    this.y = 0
+    this.z = 0
+  }
+}
+
+defineTypes(PowerUpState, {
+  id: 'string',
+  type: 'string',
+  x: 'number',
+  y: 'number',
+  z: 'number'
 })
 
 // Ball state
@@ -79,19 +107,28 @@ export class GameState extends Schema {
   constructor() {
     super()
     this.players = new MapSchema()
+    this.powerUps = new MapSchema()
     this.ball = new BallState()
     this.redScore = 0
     this.blueScore = 0
     this.timer = 300
+    this.blueScore = 0
+    this.timer = 300
     this.gamePhase = 'waiting'
+    this.timestamp = 0
   }
 }
 
 defineTypes(GameState, {
   players: { map: PlayerState },
+  powerUps: { map: PowerUpState },
   ball: BallState,
   redScore: 'number',
   blueScore: 'number',
   timer: 'number',
-  gamePhase: 'string'
+  redScore: 'number',
+  blueScore: 'number',
+  timer: 'number',
+  gamePhase: 'string',
+  timestamp: 'number'
 })

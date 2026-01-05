@@ -1,9 +1,9 @@
 import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
-import { GameState, PlayerState } from '../schema/GameState.js'
+import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 
 const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
-const STATE_SYNC_RATE = 1000 / 20   // 20Hz
+const STATE_SYNC_RATE = 1000 / 30   // 30Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 
 export class SoccerRoom extends Room {
@@ -51,6 +51,9 @@ export class SoccerRoom extends Room {
     this.onMessage('start-game', (client) => this.handleStartGame(client))
     this.onMessage('end-game', (client) => this.handleEndGame(client))
     this.onMessage('update-state', (client, data) => this.handleUpdateState(client, data))
+    
+    // Spawn power-ups periodically
+    this.clock.setInterval(() => this.spawnPowerUp(), 15000)
   }
 
   createArena() {
@@ -375,8 +378,84 @@ export class SoccerRoom extends Room {
     this.broadcast('game-reset', {})
   }
 
+  spawnPowerUp() {
+    if (this.state.gamePhase !== 'playing') return
+    if (this.state.powerUps.size >= 5) return
+
+    const id = Math.random().toString(36).substr(2, 9)
+    const types = ['speed', 'jump', 'kick', 'giant', 'invisible']
+    const type = types[Math.floor(Math.random() * types.length)]
+    
+    const powerUp = new PowerUpState()
+    powerUp.id = id
+    powerUp.type = type
+    powerUp.x = (Math.random() - 0.5) * 25
+    powerUp.y = 0.5
+    powerUp.z = (Math.random() - 0.5) * 15
+    
+    this.state.powerUps.set(id, powerUp)
+    
+    // Auto-remove after 20 seconds if not collected
+    this.clock.setTimeout(() => {
+      if (this.state.powerUps.has(id)) {
+        this.state.powerUps.delete(id)
+      }
+    }, 20000)
+  }
+
+  checkPowerUpCollisions() {
+    this.state.players.forEach((player, sessionId) => {
+      const body = this.playerBodies.get(sessionId)
+      if (!body) return
+      
+      const playerPos = body.translation()
+      
+      this.state.powerUps.forEach((powerUp, id) => {
+        const dx = playerPos.x - powerUp.x
+        const dz = playerPos.z - powerUp.z
+        const dist = Math.sqrt(dx*dx + dz*dz)
+        
+        if (dist < 1.5) {
+          // Collected!
+          this.state.powerUps.delete(id)
+          this.applyPowerUp(player, powerUp.type)
+          this.broadcast('power-up-collected', { playerId: sessionId, type: powerUp.type })
+        }
+      })
+    })
+  }
+
+  applyPowerUp(player, type) {
+    const duration = 10000
+    
+    switch(type) {
+      case 'speed':
+        player.speedMultiplier = 2.0
+        this.clock.setTimeout(() => player.speedMultiplier = 1.0, duration)
+        break
+      case 'jump':
+        player.jumpMultiplier = 1.5
+        this.clock.setTimeout(() => player.jumpMultiplier = 1.0, duration)
+        break
+      case 'kick':
+        player.kickMultiplier = 2.0
+        this.clock.setTimeout(() => player.kickMultiplier = 1.0, duration)
+        break
+      case 'giant':
+        player.giant = true
+        this.clock.setTimeout(() => player.giant = false, duration)
+        break
+      case 'invisible':
+        player.invisible = true
+        this.clock.setTimeout(() => player.invisible = false, duration)
+        break
+    }
+  }
+
   physicsUpdate(deltaTimeMs) {
     const deltaTime = deltaTimeMs / 1000
+    this.state.timestamp = Date.now()
+
     // 1. Update players from stored inputs
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
@@ -387,7 +466,7 @@ export class SoccerRoom extends Room {
       const jump = player.inputJump || false
       const rotY = player.inputRotY || 0
 
-      const speed = 8
+      const speed = 8 * (player.speedMultiplier || 1)
       const currentPos = body.translation()
 
       // Smooth horizontal velocity
@@ -403,7 +482,7 @@ export class SoccerRoom extends Room {
 
       // Vertical movement
       const GRAVITY = 20
-      const JUMP_FORCE = 8
+      const JUMP_FORCE = 8 * (player.jumpMultiplier || 1)
       const GROUND_Y = 0.1
       const MAX_JUMPS = 2
       const DOUBLE_JUMP_MULTIPLIER = 0.8
@@ -448,6 +527,9 @@ export class SoccerRoom extends Room {
 
     // Check goal
     this.checkGoal()
+    
+    // Check power-ups
+    this.checkPowerUpCollisions()
 
     // Update ball state from physics
     if (this.ballBody) {
