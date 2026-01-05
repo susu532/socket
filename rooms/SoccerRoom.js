@@ -168,8 +168,8 @@ export class SoccerRoom extends Room {
     const ballBodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, 2, 0)
       .setCcdEnabled(true)
-      .setLinearDamping(2.5) // Increased from 1.5 for smoother ball movement
-      .setAngularDamping(2.0)
+      .setLinearDamping(1.5)
+      .setAngularDamping(1.5)
 
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
@@ -516,27 +516,6 @@ export class SoccerRoom extends Room {
       // Bounds
       newX = Math.max(-14.7, Math.min(14.7, newX))
       newZ = Math.max(-9.7, Math.min(9.7, newZ))
-
-      // Player-Ball Separation (prevents interpenetration)
-      // Kinematic players can't be pushed by the ball, so we manually check overlap
-      if (this.ballBody) {
-        const ballPos = this.ballBody.translation()
-        const dx = newX - ballPos.x
-        const dz = newZ - ballPos.z
-        const distXZ = Math.sqrt(dx * dx + dz * dz)
-        const ballRadius = 0.8
-        const playerRadius = 0.6
-        const minDist = ballRadius + playerRadius // 1.4
-
-        if (distXZ < minDist && distXZ > 0.01) {
-          // Push player back along the collision normal
-          const overlap = minDist - distXZ
-          const nx = dx / distXZ
-          const nz = dz / distXZ
-          newX += nx * overlap
-          newZ += nz * overlap
-        }
-      }
 
       // Update physics body
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
