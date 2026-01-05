@@ -29,17 +29,15 @@ export class SoccerRoom extends Room {
   }
 
   async onCreate(options) {
-    console.log('SoccerRoom created!')
-
-    // Initialize state
     this.setState(new GameState())
 
-    // Set patch rate (30Hz)
-    this.setPatchRate(1000 / 30)
+    // Set map from options if provided (Host's choice)
+    if (options.map) {
+      this.state.selectedMap = options.map
+    }
 
-    // Initialize Rapier
-    await RAPIER.init()
-    this.world = new RAPIER.World({ x: 0, y: -20, z: 0 })
+    // Physics world
+    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
 
     // Create arena colliders
     this.createArena()

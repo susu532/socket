@@ -19,6 +19,16 @@ export class PlayerState extends Schema {
     this.jumpCount = 0
     this.sessionId = ''
     
+    // Server-only input state (not synced)
+    this.inputX = 0
+    this.inputZ = 0
+    this.inputJump = false
+    this.inputRotY = 0
+    this.prevJump = false
+    
+    // Logic flags
+    this.resetPosition = false
+    
     // Power-up multipliers
     this.speedMult = 1
     this.jumpMult = 1
@@ -106,6 +116,7 @@ export class GameState extends Schema {
     this.blueScore = 0
     this.timer = 300
     this.gamePhase = 'waiting'
+    this.selectedMap = 'OceanFloor'
   }
 }
 
@@ -116,5 +127,6 @@ defineTypes(GameState, {
   redScore: 'number',
   blueScore: 'number',
   timer: 'number',
-  gamePhase: 'string'
+  gamePhase: 'string',
+  selectedMap: 'string'
 })
