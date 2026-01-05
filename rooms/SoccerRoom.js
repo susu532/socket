@@ -2,8 +2,8 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 
-const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
-const STATE_SYNC_RATE = 1000 / 30   // 30Hz
+const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
+const STATE_SYNC_RATE = 1000 / 60   // 60Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 
 export class SoccerRoom extends Room {
@@ -243,7 +243,7 @@ export class SoccerRoom extends Room {
     const dz = ballPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if (dist < 3.5) {
+    if (dist < 5.0) {
       const { impulseX, impulseY, impulseZ } = data
 
       // Apply impulse with a slight vertical boost for better feel
