@@ -106,11 +106,11 @@ export class SoccerRoom extends Room {
     })
 
     // Goal back walls (The "Net" back)
-    const goalWidth = 6
-    const goalBackWallPositions = [[-15.5, 0], [15.5, 0]]
+    // Matching "big wall" thickness (2m) and height (10m)
+    const goalBackWallPositions = [[-17.2, 0], [17.2, 0]]
     goalBackWallPositions.forEach(([x, z]) => {
-      // halfX=1.5 (3m thick), halfY=5 (10m high), halfZ=4 (8m wide)
-      const desc = RAPIER.ColliderDesc.cuboid(1.5, 5, 4)
+      // halfX=1 (2m thick), halfY=5 (10m high), halfZ=5 (10m wide to overlap sides)
+      const desc = RAPIER.ColliderDesc.cuboid(1, 5, 5)
         .setTranslation(x, 5, z)
       this.world.createCollider(desc)
     })
@@ -142,14 +142,16 @@ export class SoccerRoom extends Room {
     this.world.createCollider(ceiling)
 
     // Goal side barriers (The "Net" sides)
-    // We make them thicker and position them to close the gap between posts and arena walls
+    // Matching "big wall" thickness (2m) and height (10m)
+    // Depth: 5m (from 11.2 to 16.2), Center: 13.7, halfX: 2.5
+    // Position Z: Opening is 6m (+/- 3), Wall center: 3 + 1 = 4
     const barrierPositions = [
-      [13, -2.9], [-13, -2.9], [13, 2.9], [-13, 2.9]
+      [13.7, -4], [-13.7, -4], [13.7, 4], [-13.7, 4]
     ]
     barrierPositions.forEach(([x, z]) => {
-      // halfX=2 (4m deep), halfY=2 (4m high), halfZ=0.5 (1m thick)
-      const desc = RAPIER.ColliderDesc.cuboid(2, 2, 0.5)
-        .setTranslation(x, 2, z)
+      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=1 (2m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 4)
+        .setTranslation(x, 5, z)
       this.world.createCollider(desc)
     })
 
