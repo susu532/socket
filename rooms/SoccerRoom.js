@@ -1,6 +1,6 @@
 import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
-import { GameState, PlayerState } from '../schema/GameState.js'
+import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 
 const PHYSICS_TICK_RATE = 1000 / 45 // 45Hz
 const STATE_SYNC_RATE = 1000 / 20   // 20Hz
@@ -17,6 +17,16 @@ export class SoccerRoom extends Room {
   // Timers
   lastGoalTime = 0
   timerInterval = null
+  powerUpInterval = null
+  
+  // Power-up types
+  POWER_UP_TYPES = {
+    speed: { duration: 15000 },
+    kick: { duration: 15000 },
+    jump: { duration: 15000 },
+    invisible: { duration: 15000 },
+    giant: { duration: 15000 }
+  }
 
   async onCreate(options) {
     console.log('SoccerRoom created!')
@@ -42,6 +52,9 @@ export class SoccerRoom extends Room {
 
     // State sync (broadcast at 30Hz)
     this.clock.setInterval(() => this.syncState(), STATE_SYNC_RATE)
+
+    // Power-up spawning (every 20 seconds)
+    this.powerUpInterval = this.clock.setInterval(() => this.spawnPowerUp(), 20000)
 
     // Message handlers
     this.onMessage('input', (client, data) => this.handleInput(client, data))
@@ -176,6 +189,30 @@ export class SoccerRoom extends Room {
     return { x: spawnX, y: 0.1, z: 0 }
   }
 
+  spawnPowerUp() {
+    if (this.state.powerUps.size >= 3) return // Limit power-ups on field
+
+    const id = Math.random().toString(36).substr(2, 9)
+    const types = Object.keys(this.POWER_UP_TYPES)
+    const type = types[Math.floor(Math.random() * types.length)]
+    
+    const p = new PowerUpState()
+    p.id = id
+    p.type = type
+    p.x = (Math.random() - 0.5) * 28
+    p.y = 0.5
+    p.z = (Math.random() - 0.5) * 18
+    
+    this.state.powerUps.set(id, p)
+
+    // Despawn after 15 seconds if not collected
+    this.clock.setTimeout(() => {
+      if (this.state.powerUps.has(id)) {
+        this.state.powerUps.delete(id)
+      }
+    }, 15000)
+  }
+
   onJoin(client, options) {
     console.log(`Player ${client.sessionId} joined`)
 
@@ -242,14 +279,23 @@ export class SoccerRoom extends Room {
 
     if (dist < 3.5) {
       const { impulseX, impulseY, impulseZ } = data
+      const kickMult = player.kickMult || 1
 
       // Apply impulse with a slight vertical boost for better feel
-      this.ballBody.applyImpulse({ x: impulseX, y: impulseY + 3, z: impulseZ }, true)
+      this.ballBody.applyImpulse({ 
+        x: impulseX * kickMult, 
+        y: (impulseY + 3) * kickMult, 
+        z: impulseZ * kickMult 
+      }, true)
 
       // Broadcast kick visual to all clients with impulse for prediction
       this.broadcast('ball-kicked', { 
         playerId: client.sessionId,
-        impulse: { x: impulseX, y: impulseY + 3, z: impulseZ }
+        impulse: { 
+          x: impulseX * kickMult, 
+          y: (impulseY + 3) * kickMult, 
+          z: impulseZ * kickMult 
+        }
       })
     }
   }
@@ -361,14 +407,19 @@ export class SoccerRoom extends Room {
     }
 
     // Reset player positions
+    // Reset player positions
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
       if (body) {
         const spawnX = player.team === 'red' ? -6 : 6
-        body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
+        // Set flag for physics loop to handle
+        player.resetPosition = true
         player.x = spawnX
         player.y = 0.1
         player.z = 0
+        player.vx = 0
+        player.vy = 0
+        player.vz = 0
       }
     })
 
@@ -387,9 +438,33 @@ export class SoccerRoom extends Room {
       const jump = player.inputJump || false
       const rotY = player.inputRotY || 0
 
-      const speed = 8
+      // Handle forced reset
+      if (player.resetPosition) {
+        const spawnX = player.team === 'red' ? -6 : 6
+        body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
+        player.vx = 0
+        player.vy = 0
+        player.vz = 0
+        player.resetPosition = false
+        return // Skip physics for this frame
+      }
+
+      const speed = 8 * (player.speedMult || 1)
       const currentPos = body.translation()
 
+      // Check for power-up collection
+      this.state.powerUps.forEach((p, id) => {
+        const dx = currentPos.x - p.x
+        const dz = currentPos.z - p.z
+        const dist = Math.sqrt(dx * dx + dz * dz)
+        
+        if (dist < 1.5) {
+          this.applyPowerUp(player, p.type)
+          this.state.powerUps.delete(id)
+          this.broadcast('powerup-collected', { sessionId, type: p.type })
+        }
+      })
+      
       // Smooth horizontal velocity
       // Direct velocity (snappy movement)
            player.vx = player.vx || 0
@@ -415,7 +490,8 @@ export class SoccerRoom extends Room {
       }
 
       if (jump && !player.prevJump && player.jumpCount < MAX_JUMPS) {
-        player.vy = player.jumpCount === 0 ? JUMP_FORCE : JUMP_FORCE * DOUBLE_JUMP_MULTIPLIER
+        const jumpForce = JUMP_FORCE * (player.jumpMult || 1)
+        player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
       }
       player.prevJump = jump
@@ -513,10 +589,37 @@ export class SoccerRoom extends Room {
     // This is here for any additional manual syncing if needed
   }
 
+  applyPowerUp(player, type) {
+    const duration = this.POWER_UP_TYPES[type].duration
+    
+    if (type === 'speed') {
+      player.speedMult = 2
+      this.clock.setTimeout(() => player.speedMult = 1, duration)
+    } else if (type === 'jump') {
+      player.jumpMult = 1.5
+      this.clock.setTimeout(() => player.jumpMult = 1, duration)
+    } else if (type === 'kick') {
+      player.kickMult = 2
+      this.clock.setTimeout(() => player.kickMult = 1, duration)
+    } else if (type === 'invisible') {
+      player.invisible = true
+      this.clock.setTimeout(() => player.invisible = false, duration)
+    } else if (type === 'giant') {
+      player.giant = true
+      // Handle physics body change for giant
+      const body = this.playerBodies.get(player.sessionId)
+      if (body) {
+        // Increase mass/size? Kinematic bodies don't have mass in the same way, 
+        // but we could change the collider. For now, just a flag is enough for visuals.
+        // If we wanted real physics impact, we'd recreate the collider here.
+      }
+      this.clock.setTimeout(() => player.giant = false, duration)
+    }
+  }
+
   onDispose() {
     console.log('SoccerRoom disposed')
-    if (this.timerInterval) {
-      this.timerInterval.clear()
-    }
+    if (this.timerInterval) this.timerInterval.clear()
+    if (this.powerUpInterval) this.powerUpInterval.clear()
   }
 }

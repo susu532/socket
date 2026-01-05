@@ -25,6 +25,14 @@ export class PlayerState extends Schema {
     this.inputJump = false
     this.inputRotY = 0
     this.prevJump = false
+    
+    // Logic flags
+    this.resetPosition = false
+    
+    // Power-up multipliers
+    this.speedMult = 1
+    this.jumpMult = 1
+    this.kickMult = 1
   }
 }
 
@@ -41,7 +49,30 @@ defineTypes(PlayerState, {
   character: 'string',
   invisible: 'boolean',
   giant: 'boolean',
-  sessionId: 'string'
+  sessionId: 'string',
+  speedMult: 'number',
+  jumpMult: 'number',
+  kickMult: 'number'
+})
+
+// Power-up state
+export class PowerUpState extends Schema {
+  constructor() {
+    super()
+    this.id = ''
+    this.type = ''
+    this.x = 0
+    this.y = 0
+    this.z = 0
+  }
+}
+
+defineTypes(PowerUpState, {
+  id: 'string',
+  type: 'string',
+  x: 'number',
+  y: 'number',
+  z: 'number'
 })
 
 // Ball state
@@ -79,6 +110,7 @@ export class GameState extends Schema {
   constructor() {
     super()
     this.players = new MapSchema()
+    this.powerUps = new MapSchema()
     this.ball = new BallState()
     this.redScore = 0
     this.blueScore = 0
@@ -89,6 +121,7 @@ export class GameState extends Schema {
 
 defineTypes(GameState, {
   players: { map: PlayerState },
+  powerUps: { map: PowerUpState },
   ball: BallState,
   redScore: 'number',
   blueScore: 'number',
