@@ -399,6 +399,11 @@ export class SoccerRoom extends Room {
     this.state.timer = 300
     this.state.gamePhase = 'waiting'
 
+    this.resetPositions()
+    this.broadcast('game-reset', {})
+  }
+
+  resetPositions() {
     // Reset ball
     if (this.ballBody) {
       this.ballBody.setTranslation({ x: 0, y: 2, z: 0 }, true)
@@ -406,7 +411,6 @@ export class SoccerRoom extends Room {
       this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true)
     }
 
-    // Reset player positions
     // Reset player positions
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
@@ -422,8 +426,6 @@ export class SoccerRoom extends Room {
         player.vz = 0
       }
     })
-
-    this.broadcast('game-reset', {})
   }
 
   physicsUpdate(deltaTimeMs) {
@@ -573,13 +575,10 @@ export class SoccerRoom extends Room {
 
       this.broadcast('goal-scored', { team: scoringTeam })
 
-      // Reset ball after delay
+      // Reset positions after delay
       this.clock.setTimeout(() => {
-        if (this.ballBody) {
-          this.ballBody.setTranslation({ x: 0, y: 2, z: 0 }, true)
-          this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true)
-          this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true)
-        }
+        this.resetPositions()
+        this.broadcast('game-reset', {})
       }, 3000)
     }
   }
