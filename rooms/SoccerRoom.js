@@ -146,7 +146,7 @@ export class SoccerRoom extends Room {
     // Depth: 5m (from 11.2 to 16.2), Center: 13.7, halfX: 2.5
     // Position Z: Opening is 6m (+/- 3), Wall center: 3 + 1 = 4
     const barrierPositions = [
-      [13.7, -4], [-13.7, -4], [13.7, 4], [-13.7, 4]
+      [13.7, -3.5], [-13.7, -3.5], [13.7, 3.5], [-13.7, 3.5]
     ]
     barrierPositions.forEach(([x, z]) => {
       // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=1 (2m thick)
@@ -529,45 +529,7 @@ export class SoccerRoom extends Room {
 
     })
 
-    // Dribble Logic (Ball Carry)
-    if (this.ballBody) {
-      const ballPos = this.ballBody.translation()
-      const ballVel = this.ballBody.linvel()
 
-      this.state.players.forEach((player, sessionId) => {
-        const body = this.playerBodies.get(sessionId)
-        if (!body) return
-
-        const playerPos = body.translation()
-        const dx = ballPos.x - playerPos.x
-        const dz = ballPos.z - playerPos.z
-        const dist = Math.sqrt(dx * dx + dz * dz)
-
-        // Dribble conditions:
-        // 1. Close enough (radius 1.5)
-        // 2. Ball is above player (y > 0.6) - Player height is ~0.6-0.8
-        // 3. Ball not moving up too fast (vy < 3)
-        if (dist < 1.5 && ballPos.y > playerPos.y + 0.5 && ballVel.y < 3) {
-           // Calculate target velocity (match player)
-           const targetVx = player.vx || 0
-           const targetVz = player.vz || 0
-           
-           // Apply soft carry impulse
-           // We nudge the ball towards the player's velocity
-           const carryStrength = 0.15
-           const impulseX = (targetVx - ballVel.x) * carryStrength
-           const impulseZ = (targetVz - ballVel.z) * carryStrength
-           
-           this.ballBody.applyImpulse({ x: impulseX, y: 0, z: impulseZ }, true)
-
-           // Apply settle force (downward) to keep it "sticky"
-           // Only if ball is close to resting on player
-           if (ballPos.y < playerPos.y + 1.2) {
-             this.ballBody.applyImpulse({ x: 0, y: -0.1, z: 0 }, true)
-           }
-        }
-      })
-    }
 
     // 2. Step physics world
     this.world.step()
