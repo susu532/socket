@@ -64,6 +64,9 @@ export class SoccerRoom extends Room {
     this.onMessage('start-game', (client) => this.handleStartGame(client))
     this.onMessage('end-game', (client) => this.handleEndGame(client))
     this.onMessage('update-state', (client, data) => this.handleUpdateState(client, data))
+    this.onMessage('ping', (client) => {
+      client.send('pong', {})
+    })
   }
 
   createArena() {
@@ -102,12 +105,13 @@ export class SoccerRoom extends Room {
       this.world.createCollider(desc)
     })
 
-    // Goal back walls
+    // Goal back walls (The "Net" back)
     const goalWidth = 6
-    const goalBackWallPositions = [[-13 - wallThickness, 0], [13 + wallThickness, 0]]
+    const goalBackWallPositions = [[-15.5, 0], [15.5, 0]]
     goalBackWallPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cuboid(wallThickness / 2, wallHeight / 2, (goalWidth + 2) / 2)
-        .setTranslation(x, wallHeight / 2, z)
+      // halfX=1.5 (3m thick), halfY=5 (10m high), halfZ=4 (8m wide)
+      const desc = RAPIER.ColliderDesc.cuboid(1.5, 5, 4)
+        .setTranslation(x, 5, z)
       this.world.createCollider(desc)
     })
 
@@ -137,13 +141,15 @@ export class SoccerRoom extends Room {
       .setTranslation(0, wallHeight, 0)
     this.world.createCollider(ceiling)
 
-    // Goal side barriers
+    // Goal side barriers (The "Net" sides)
+    // We make them thicker and position them to close the gap between posts and arena walls
     const barrierPositions = [
-      [13, -2.4], [-13, -2.4], [13, 2.4], [-13, 2.4]
+      [13, -2.9], [-13, -2.9], [13, 2.9], [-13, 2.9]
     ]
     barrierPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cuboid(2, 6.5, 0.1)
-        .setTranslation(x, 0, z)
+      // halfX=2 (4m deep), halfY=2 (4m high), halfZ=0.5 (1m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(2, 2, 0.5)
+        .setTranslation(x, 2, z)
       this.world.createCollider(desc)
     })
 
