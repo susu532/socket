@@ -29,6 +29,7 @@ export class SoccerRoom extends Room {
   }
 
   async onCreate(options) {
+    await RAPIER.init()
     this.setState(new GameState())
 
     // Set map from options if provided (Host's choice)
