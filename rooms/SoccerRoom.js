@@ -721,14 +721,41 @@ export class SoccerRoom extends Room {
       this.clock.setTimeout(() => player.invisible = false, duration)
     } else if (type === 'giant') {
       player.giant = true
+      
       // Handle physics body change for giant
       const body = this.playerBodies.get(player.sessionId)
       if (body) {
-        // Increase mass/size? Kinematic bodies don't have mass in the same way, 
-        // but we could change the collider. For now, just a flag is enough for visuals.
-        // If we wanted real physics impact, we'd recreate the collider here.
+        // Remove existing collider (index 0)
+        if (body.numColliders() > 0) {
+          const collider = body.collider(0)
+          this.world.removeCollider(collider, false)
+        }
+
+        // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
+        // Normal is 0.6, so this is 10x bigger
+        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 2.0, 6.0)
+          .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
+        
+        this.world.createCollider(giantCollider, body)
       }
-      this.clock.setTimeout(() => player.giant = false, duration)
+
+      this.clock.setTimeout(() => {
+        player.giant = false
+        
+        // Restore normal collider
+        const body = this.playerBodies.get(player.sessionId)
+        if (body) {
+          if (body.numColliders() > 0) {
+            const collider = body.collider(0)
+            this.world.removeCollider(collider, false)
+          }
+
+          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+            .setTranslation(0, 0.2, 0)
+          
+          this.world.createCollider(normalCollider, body)
+        }
+      }, duration)
     }
   }
 
