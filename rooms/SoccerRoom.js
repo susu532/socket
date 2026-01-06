@@ -1,13 +1,20 @@
 import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
+import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
 
 const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
 const STATE_SYNC_RATE = 1000 / 30   // 30Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
+const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
 
 export class SoccerRoom extends Room {
-  maxClients = 10
+  maxClients = 4
+
+  isPublic = true
+  privateCode = null
+  codeSent = false
+  emptyDisposeTimeout = null
 
   // Physics world
   world = null
@@ -31,6 +38,21 @@ export class SoccerRoom extends Room {
   async onCreate(options) {
     await RAPIER.init()
     this.setState(new GameState())
+
+    this.isPublic = options?.isPublic !== false
+    this.setPrivate(!this.isPublic)
+
+    if (!this.isPublic) {
+      const requestedCode = options?.code ? String(options.code).trim().toUpperCase() : null
+      this.privateCode = requestedCode || this.generateUniqueJoinCode()
+      registerPrivateRoom(this.roomId, this.privateCode)
+    }
+
+    this.setMetadata({
+      isPublic: this.isPublic,
+      map: options?.map || this.state.selectedMap || null,
+      createdAt: Date.now()
+    })
 
     // Set map from options if provided (Host's choice)
     if (options.map) {
@@ -226,6 +248,20 @@ export class SoccerRoom extends Room {
   onJoin(client, options) {
     console.log(`Player ${client.sessionId} joined`)
 
+    if (this.emptyDisposeTimeout) {
+      try {
+        this.emptyDisposeTimeout.clear()
+      } catch (e) {
+        // ignore
+      }
+      this.emptyDisposeTimeout = null
+    }
+
+    if (this.privateCode && !this.codeSent) {
+      client.send('room-code', { code: this.privateCode })
+      this.codeSent = true
+    }
+
     const player = new PlayerState()
     player.name = options.name || 'Player'
     player.team = options.team || 'red'
@@ -260,6 +296,31 @@ export class SoccerRoom extends Room {
     this.state.players.delete(client.sessionId)
 
     this.broadcast('player-left', { sessionId: client.sessionId })
+
+    if (this.clients.length === 0 && !this.emptyDisposeTimeout) {
+      this.emptyDisposeTimeout = this.clock.setTimeout(() => {
+        if (this.clients.length === 0) {
+          this.disconnect()
+        }
+      }, EMPTY_DISPOSE_DELAY)
+    }
+  }
+
+  onDispose() {
+    unregisterRoom(this.roomId)
+  }
+
+  generateUniqueJoinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    for (let i = 0; i < 50; i++) {
+      let code = ''
+      for (let j = 0; j < 4; j++) {
+        code += chars[Math.floor(Math.random() * chars.length)]
+      }
+      if (!getRoomIdByCode(code)) return code
+    }
+    // fallback (very unlikely)
+    return Math.random().toString(36).slice(2, 6).toUpperCase()
   }
 
   handleInput(client, data) {
@@ -294,7 +355,7 @@ export class SoccerRoom extends Room {
       // Apply impulse with a slight vertical boost for better feel
       this.ballBody.applyImpulse({ 
         x: impulseX * kickMult, 
-        y: (impulseY + 3) * kickMult, 
+        y: (impulseY + 1.6) * kickMult, 
         z: impulseZ * kickMult 
       }, true)
 
