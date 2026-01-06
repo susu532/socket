@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
 
-const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
+const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
 
