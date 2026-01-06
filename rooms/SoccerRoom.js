@@ -16,6 +16,8 @@ export class SoccerRoom extends Room {
   codeSent = false
   emptyDisposeTimeout = null
 
+  roomCreatedAt = Date.now()
+
   // Physics world
   world = null
   playerBodies = new Map()
@@ -39,6 +41,8 @@ export class SoccerRoom extends Room {
     await RAPIER.init()
     this.setState(new GameState())
 
+    this.roomCreatedAt = Date.now()
+
     this.isPublic = options?.isPublic !== false
     this.setPrivate(!this.isPublic)
 
@@ -51,7 +55,9 @@ export class SoccerRoom extends Room {
     this.setMetadata({
       isPublic: this.isPublic,
       map: options?.map || this.state.selectedMap || null,
-      createdAt: Date.now()
+      createdAt: this.roomCreatedAt,
+      redCount: 0,
+      blueCount: 0
     })
 
     // Set map from options if provided (Host's choice)
@@ -87,6 +93,38 @@ export class SoccerRoom extends Room {
     this.onMessage('update-state', (client, data) => this.handleUpdateState(client, data))
     this.onMessage('ping', (client) => {
       client.send('pong', {})
+    })
+  }
+
+  getTeamCounts(excludeSessionId = null) {
+    let red = 0
+    let blue = 0
+    this.state.players.forEach((p, id) => {
+      if (excludeSessionId && id === excludeSessionId) return
+      if (p.team === 'blue') blue += 1
+      else red += 1
+    })
+    return { red, blue }
+  }
+
+  chooseTeam(requestedTeam, excludeSessionId = null) {
+    const desired = requestedTeam === 'blue' ? 'blue' : 'red'
+    const other = desired === 'red' ? 'blue' : 'red'
+    const counts = this.getTeamCounts(excludeSessionId)
+
+    if (counts[desired] < 2) return desired
+    if (counts[other] < 2) return other
+    return desired
+  }
+
+  updateRoomMetadataCounts() {
+    const counts = this.getTeamCounts()
+    this.setMetadata({
+      isPublic: this.isPublic,
+      map: this.state.selectedMap || this.metadata?.map || null,
+      createdAt: this.roomCreatedAt,
+      redCount: counts.red,
+      blueCount: counts.blue
     })
   }
 
@@ -257,14 +295,13 @@ export class SoccerRoom extends Room {
       this.emptyDisposeTimeout = null
     }
 
-    if (this.privateCode && !this.codeSent) {
+    if (this.privateCode) {
       client.send('room-code', { code: this.privateCode })
-      this.codeSent = true
     }
 
     const player = new PlayerState()
     player.name = options.name || 'Player'
-    player.team = options.team || 'red'
+    player.team = this.chooseTeam(options.team || 'red')
     player.character = options.character || 'cat'
 
     const spawn = this.createPlayerBody(client.sessionId, player.team)
@@ -274,6 +311,8 @@ export class SoccerRoom extends Room {
     player.sessionId = client.sessionId
 
     this.state.players.set(client.sessionId, player)
+
+    this.updateRoomMetadataCounts()
 
     // Notify all about new player
     this.broadcast('player-joined', {
@@ -294,6 +333,8 @@ export class SoccerRoom extends Room {
     }
 
     this.state.players.delete(client.sessionId)
+
+    this.updateRoomMetadataCounts()
 
     this.broadcast('player-left', { sessionId: client.sessionId })
 
@@ -376,8 +417,10 @@ export class SoccerRoom extends Room {
     if (!player) return
 
     player.name = data.name || player.name
-    player.team = data.team || player.team
+    player.team = this.chooseTeam(data.team || player.team, client.sessionId)
     player.character = data.character || player.character
+
+    this.updateRoomMetadataCounts()
 
     // Respawn at correct position
     const body = this.playerBodies.get(client.sessionId)
