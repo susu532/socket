@@ -4,7 +4,6 @@ import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
 
 const PHYSICS_TICK_RATE = 1000 / 60 // 60Hz
-const STATE_SYNC_RATE = 1000 / 30   // 30Hz
 const GOAL_COOLDOWN = 5000          // 5 seconds
 const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
 
@@ -40,6 +39,9 @@ export class SoccerRoom extends Room {
   async onCreate(options) {
     await RAPIER.init()
     this.setState(new GameState())
+    
+    // Set patch rate to 30Hz (33ms) to prevent network congestion while maintaining smoothness
+    this.setPatchRate(33)
 
     this.roomCreatedAt = Date.now()
 
@@ -76,9 +78,6 @@ export class SoccerRoom extends Room {
 
     // Physics loop
     this.setSimulationInterval((deltaTime) => this.physicsUpdate(deltaTime), PHYSICS_TICK_RATE)
-
-    // State sync (broadcast at 30Hz)
-    this.clock.setInterval(() => this.syncState(), STATE_SYNC_RATE)
 
     // Power-up spawning (every 20 seconds)
     this.powerUpInterval = this.clock.setInterval(() => this.spawnPowerUp(), 20000)
@@ -723,10 +722,7 @@ export class SoccerRoom extends Room {
     }
   }
 
-  syncState() {
-    // State is automatically synced by Colyseus schema
-    // This is here for any additional manual syncing if needed
-  }
+
 
   applyPowerUp(player, type) {
     const duration = this.POWER_UP_TYPES[type].duration
