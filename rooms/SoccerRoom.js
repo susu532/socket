@@ -252,6 +252,8 @@ export class SoccerRoom extends Room {
 
     const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
       .setTranslation(0, 0.2, 0)
+      .setFriction(2.0)
+      .setRestitution(0.0)
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
@@ -735,6 +737,8 @@ export class SoccerRoom extends Room {
         // Normal is 0.6, so this is 10x bigger
         const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 2.0, 6.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
+          .setFriction(2.0)
+          .setRestitution(0.0)
         
         this.world.createCollider(giantCollider, body)
       }
@@ -752,6 +756,8 @@ export class SoccerRoom extends Room {
 
           const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
             .setTranslation(0, 0.2, 0)
+            .setFriction(2.0)
+            .setRestitution(0.0)
           
           this.world.createCollider(normalCollider, body)
         }
