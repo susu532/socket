@@ -1,4 +1,4 @@
-import { Server } from 'colyseus'
+import { Server, matchMaker } from 'colyseus'
 import { WebSocketTransport } from '@colyseus/ws-transport'
 import { createServer } from 'http'
 import express from 'express'
@@ -24,6 +24,17 @@ app.get('/rooms/resolve/:code', (req, res) => {
   if (!roomId) return res.status(404).json({ error: 'Room not found' })
 
   return res.json({ roomId })
+})
+
+app.get('/rooms/public', async (req, res) => {
+  try {
+    const rooms = await matchMaker.query({ name: 'soccer' })
+    const publicRooms = (rooms || []).filter((r) => r?.metadata?.isPublic !== false)
+    return res.json(publicRooms)
+  } catch (err) {
+    console.error('Failed to query public rooms:', err)
+    return res.status(500).json({ error: 'Failed to list rooms' })
+  }
 })
 
 const gameServer = new Server({
