@@ -757,7 +757,7 @@ export class SoccerRoom extends Room {
 
         // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
         // Normal is 0.6, so this is 10x bigger
-        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 2.0, 6.0)
+        const giantCollider = RAPIER.ColliderDesc.cuboid(4.0, 2.0, 4.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
