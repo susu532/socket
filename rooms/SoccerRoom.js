@@ -396,7 +396,7 @@ export class SoccerRoom extends Room {
       // Apply impulse with a slight vertical boost for better feel
       this.ballBody.applyImpulse({ 
         x: impulseX * kickMult, 
-        y: (impulseY + 1.6) * kickMult, 
+        y: (impulseY + 0.8) * kickMult, 
         z: impulseZ * kickMult 
       }, true)
 
