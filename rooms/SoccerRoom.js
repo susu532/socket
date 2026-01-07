@@ -33,7 +33,7 @@ export class SoccerRoom extends Room {
     kick: { duration: 15000 },
     jump: { duration: 15000 },
     invisible: { duration: 15000 },
-    giant: { duration: 15000 }
+    shield: { duration: 15000 }
   }
 
   async onCreate(options) {
