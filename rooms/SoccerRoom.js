@@ -634,43 +634,7 @@ export class SoccerRoom extends Room {
       player.z = newZ
       player.rotY = rotY
 
-      // Dribbling - Rocket League style stabilization
-      if (this.ballBody) {
-        const ballPos = this.ballBody.translation()
-        const dx = ballPos.x - currentPos.x
-        const dz = ballPos.z - currentPos.z
-        const distHz = Math.sqrt(dx * dx + dz * dz)
-        const dy = ballPos.y - currentPos.y
-
-        // Dribble zone check
-        // Player collider is roughly 0.4x0.6x0.4 (based on user edits)
-        // Ball radius is 0.8
-        if (distHz < 1.4 && dy > 0.5 && dy < 2.0) {
-          const ballVel = this.ballBody.linvel()
-          
-          // 1. Centering Impulse (pull ball towards car center)
-          // Normalize direction
-          const invDist = 1 / (distHz + 0.001)
-          const dirX = -dx * invDist
-          const dirZ = -dz * invDist
-          
-          // Strength
-          const centerStrength = 0.15 // Tune
-          this.ballBody.applyImpulse({ 
-            x: dirX * centerStrength, 
-            y: 0.08, // 2. Small upward lift
-            z: dirZ * centerStrength 
-          }, true)
-
-          // 3. Velocity Matching (Grip)
-          const lerp = (a, b, t) => a + (b - a) * t
-          const grip = 0.2
-          const newVx = lerp(ballVel.x, player.vx, grip)
-          const newVz = lerp(ballVel.z, player.vz, grip)
-          
-          this.ballBody.setLinvel({ x: newVx, y: ballVel.y, z: newVz }, true)
-        }
-      }
+      
     })
 
 
@@ -768,7 +732,7 @@ export class SoccerRoom extends Room {
 
         // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
         // Normal is 0.6, so this is 10x bigger
-        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 2.0, 6.0)
+        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
