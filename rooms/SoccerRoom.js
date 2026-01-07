@@ -249,12 +249,22 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+    // Compound Collider: Box Base + Cylinder Top (Rounded for dribbling)
+    // 1. Base Box (Flat sides)
+    const baseCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
       .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
+    this.world.createCollider(baseCollider, body)
 
-    this.world.createCollider(collider, body)
+    // 2. Top Cylinder (Rounded top for ball resting)
+    // Slightly smaller radius to avoid catching on walls
+    const topCollider = RAPIER.ColliderDesc.cylinder(0.1, 0.55) 
+      .setTranslation(0, 0.45, 0) // Sit on top of base
+      .setFriction(2.0) // High friction for grip
+      .setRestitution(0.0)
+    this.world.createCollider(topCollider, body)
+
     this.playerBodies.set(sessionId, body)
 
     return { x: spawnX, y: 0.1, z: 0 }
@@ -640,6 +650,61 @@ export class SoccerRoom extends Room {
 
 
     // 2. Step physics world
+    // === DRIBBLE STABILIZATION (Assisted Physics) ===
+    if (this.ballBody) {
+      const ballPos = this.ballBody.translation()
+      const ballVel = this.ballBody.linvel()
+      
+      this.state.players.forEach((player, sessionId) => {
+        const body = this.playerBodies.get(sessionId)
+        if (!body) return
+        
+        const playerPos = body.translation()
+        
+        // Check if ball is in "Dribble Zone" (Above player)
+        const dx = ballPos.x - playerPos.x
+        const dz = ballPos.z - playerPos.z
+        const dy = ballPos.y - playerPos.y
+        
+        // Zone: Within 0.8m radius horizontally, and 0.4m - 1.2m vertically
+        if (Math.sqrt(dx*dx + dz*dz) < 0.8 && dy > 0.4 && dy < 1.2) {
+          // Check player stability (not turning too fast)
+          const rotY = player.rotY || 0
+          // Simple turn speed check could be added here if we tracked prevRotY
+          
+          // 1. Horizontal Damping (Friction/Grip)
+          // Match ball velocity to player velocity
+          const gripStrength = 0.15 // How strongly we pull ball to player speed
+          const targetVx = player.vx || 0
+          const targetVz = player.vz || 0
+          
+          // Apply impulse to correct velocity difference
+          const impulseX = (targetVx - ballVel.x) * gripStrength * 3.0 // Mass 3.0
+          const impulseZ = (targetVz - ballVel.z) * gripStrength * 3.0
+          
+          // 2. Centering Force (Magnetism)
+          // Gently pull ball towards center of car to prevent sliding off
+          const centerStrength = 0.05
+          const centerImpulseX = -dx * centerStrength * 3.0
+          const centerImpulseZ = -dz * centerStrength * 3.0
+          
+          // 3. Vertical Suspension
+          // If ball is sinking too low, prop it up slightly
+          let impulseY = 0
+          if (dy < 0.6) {
+             impulseY = 0.1 * 3.0 // Gentle lift
+          }
+
+          // Apply total stabilization impulse
+          this.ballBody.applyImpulse({
+            x: impulseX + centerImpulseX,
+            y: impulseY,
+            z: impulseZ + centerImpulseZ
+          }, true)
+        }
+      })
+    }
+
     this.world.step()
 
     // Check goal
@@ -651,7 +716,7 @@ export class SoccerRoom extends Room {
       const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-            this.state.ball.x = pos.x
+      this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
