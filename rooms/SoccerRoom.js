@@ -251,17 +251,17 @@ export class SoccerRoom extends Room {
     const body = this.world.createRigidBody(bodyDesc)
 
     // Compound Collider: Box Base + Cylinder Top (Rounded for dribbling)
-    // 1. Base Box (Flat sides)
-    const baseCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
-      .setTranslation(0, 0.2, 0)
+    // 1. Base Box (Flat sides) - HALVED SIZE
+    const baseCollider = RAPIER.ColliderDesc.cuboid(0.3, 0.1, 0.3)
+      .setTranslation(0, 0.1, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
     this.world.createCollider(baseCollider, body)
 
-    // 2. Top Cylinder (Rounded top for ball resting)
+    // 2. Top Cylinder (Rounded top for ball resting) - HALVED SIZE
     // Slightly smaller radius to avoid catching on walls
-    const topCollider = RAPIER.ColliderDesc.cylinder(0.1, 0.55) 
-      .setTranslation(0, 0.45, 0) // Sit on top of base
+    const topCollider = RAPIER.ColliderDesc.cylinder(0.05, 0.275) 
+      .setTranslation(0, 0.225, 0) // Sit on top of base
       .setFriction(2.0) // High friction for grip
       .setRestitution(0.0)
     this.world.createCollider(topCollider, body)
@@ -667,8 +667,8 @@ export class SoccerRoom extends Room {
         const dz = ballPos.z - playerPos.z
         const dy = ballPos.y - playerPos.y
         
-        // Zone: Within 0.8m radius horizontally, and 0.4m - 1.2m vertically
-        if (Math.sqrt(dx*dx + dz*dz) < 0.8 && dy > 0.4 && dy < 1.2) {
+        // Zone: Within 0.5m radius horizontally (was 0.8), and 0.2m - 0.6m vertically (was 0.4 - 1.2)
+        if (Math.sqrt(dx*dx + dz*dz) < 0.5 && dy > 0.2 && dy < 0.6) {
           // Check player stability (not turning too fast)
           const rotY = player.rotY || 0
           // Simple turn speed check could be added here if we tracked prevRotY
@@ -692,7 +692,7 @@ export class SoccerRoom extends Room {
           // 3. Vertical Suspension
           // If ball is sinking too low, prop it up slightly
           let impulseY = 0
-          if (dy < 0.6) {
+          if (dy < 0.3) {
              impulseY = 0.1 * 3.0 // Gentle lift
           }
 
