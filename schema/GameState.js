@@ -15,7 +15,7 @@ export class PlayerState extends Schema {
     this.team = ''
     this.character = 'cat'
     this.invisible = false
-    this.shield = false
+    this.giant = false
     this.jumpCount = 0
     this.sessionId = ''
     
@@ -48,7 +48,7 @@ defineTypes(PlayerState, {
   team: 'string',
   character: 'string',
   invisible: 'boolean',
-  shield: 'boolean',
+  giant: 'boolean',
   sessionId: 'string',
   speedMult: 'number',
   jumpMult: 'number',

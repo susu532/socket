@@ -33,7 +33,7 @@ export class SoccerRoom extends Room {
     kick: { duration: 15000 },
     jump: { duration: 15000 },
     invisible: { duration: 15000 },
-    shield: { duration: 15000 }
+    giant: { duration: 15000 }
   }
 
   async onCreate(options) {
@@ -718,10 +718,10 @@ export class SoccerRoom extends Room {
     } else if (type === 'invisible') {
       player.invisible = true
       this.clock.setTimeout(() => player.invisible = false, duration)
-    } else if (type === 'shield') {
-      player.shield = true
+    } else if (type === 'giant') {
+      player.giant = true
       
-      // Handle physics body change for shield
+      // Handle physics body change for giant
       const body = this.playerBodies.get(player.sessionId)
       if (body) {
         // Remove existing collider (index 0)
@@ -730,17 +730,18 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create SHIELD collider (Radius 4.0)
-        const shieldCollider = RAPIER.ColliderDesc.ball(4.0)
-          .setTranslation(0, 2.0, 0) // Shift up slightly
-          .setFriction(0.5) // Lower friction for sliding
-          .setRestitution(0.8) // Bouncy
+        // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
+        // Normal is 0.6, so this is 10x bigger
+        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
+          .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
+          .setFriction(2.0)
+          .setRestitution(0.0)
         
-        this.world.createCollider(shieldCollider, body)
+        this.world.createCollider(giantCollider, body)
       }
 
       this.clock.setTimeout(() => {
-        player.shield = false
+        player.giant = false
         
         // Restore normal collider
         const body = this.playerBodies.get(player.sessionId)
