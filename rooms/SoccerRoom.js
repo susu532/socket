@@ -643,6 +643,35 @@ export class SoccerRoom extends Room {
     // 2. Step physics world
     this.world.step()
 
+    // Detect and broadcast ball-player collisions
+    if (this.ballBody) {
+      this.world.contactsWith(this.ballBody, (collider) => {
+        // Find player associated with this collider
+        for (const [sessionId, body] of this.playerBodies) {
+          if (body.containsCollider(collider)) {
+            const player = this.state.players.get(sessionId)
+            if (player) {
+              const vel = this.ballBody.linvel()
+              const pos = this.ballBody.translation()
+              
+              // Broadcast high-frequency collision event
+              this.broadcast('ball-collision', {
+                sessionId: sessionId,
+                timestamp: Date.now(),
+                vx: vel.x,
+                vy: vel.y,
+                vz: vel.z,
+                x: pos.x,
+                y: pos.y,
+                z: pos.z
+              }, { afterNextPatch: true }) // Optimize network traffic
+            }
+            break
+          }
+        }
+      })
+    }
+
     // Check goal
     this.checkGoal()
 
