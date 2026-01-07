@@ -407,7 +407,7 @@ export class SoccerRoom extends Room {
         playerId: client.sessionId,
         impulse: { 
           x: impulseX, 
-          y: impulseY + 3 * kickMult, // Visual boost scaled
+          y: impulseY + 1.5 * kickMult, // Visual boost scaled
           z: impulseZ 
         }
       })
