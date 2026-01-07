@@ -131,7 +131,7 @@ export class SoccerRoom extends Room {
     const pitchWidth = 30
     const pitchDepth = 20
     const wallHeight = 10
-    const wallThickness = 2
+    const wallThickness = 20 // INCREASED from 2 to 20 for impenetrable walls
 
     // Ground
     const groundDesc = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.25, pitchDepth / 2)
@@ -139,7 +139,7 @@ export class SoccerRoom extends Room {
       .setFriction(2.0)
     this.world.createCollider(groundDesc)
 
-    // Back walls (Z axis)
+    // Back walls (Z axis) - Automatically adjusts position based on thickness
     const backWall1 = RAPIER.ColliderDesc.cuboid((pitchWidth + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2)
       .setTranslation(0, wallHeight / 2, -pitchDepth / 2 - wallThickness / 2)
     this.world.createCollider(backWall1)
@@ -164,11 +164,12 @@ export class SoccerRoom extends Room {
     })
 
     // Goal back walls (The "Net" back)
-    // Matching "big wall" thickness (2m) and height (10m)
-    const goalBackWallPositions = [[-17.2, 0], [17.2, 0]]
+    // Increased thickness to 20m (half=10). Adjusted X to keep inner face at +/- 16.2
+    // Original: x=17.2, half=1 -> Inner=16.2
+    // New: half=10 -> x=26.2 (Right), x=-26.2 (Left)
+    const goalBackWallPositions = [[-26.2, 0], [26.2, 0]]
     goalBackWallPositions.forEach(([x, z]) => {
-      // halfX=1 (2m thick), halfY=5 (10m high), halfZ=5 (10m wide to overlap sides)
-      const desc = RAPIER.ColliderDesc.cuboid(1, 5, 5)
+      const desc = RAPIER.ColliderDesc.cuboid(10, 5, 5)
         .setTranslation(x, 5, z)
         .setRestitution(1.2)
       this.world.createCollider(desc)
@@ -201,15 +202,15 @@ export class SoccerRoom extends Room {
     this.world.createCollider(ceiling)
 
     // Goal side barriers (The "Net" sides)
-    // Matching "big wall" thickness (2m) and height (10m)
-    // Depth: 5m (from 11.2 to 16.2), Center: 13.7, halfX: 2.5
-    // Position Z: Opening is 6m (+/- 3), Wall center: 3 + 1 = 4
+    // Increased thickness to 20m (half=10). Adjusted Z to keep inner face at +/- 2.5
+    // Original: z=3.5, half=1 -> Inner=2.5
+    // New: half=10 -> z=12.5 (Positive), z=-12.5 (Negative)
     const barrierPositions = [
-      [13.7, -3.5], [-13.7, -3.5], [13.7, 3.5], [-13.7, 3.5]
+      [13.7, -12.5], [-13.7, -12.5], [13.7, 12.5], [-13.7, 12.5]
     ]
     barrierPositions.forEach(([x, z]) => {
-      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=1 (2m thick)
-      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 1)
+      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=10 (20m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 10)
         .setTranslation(x, 5, z)
         .setRestitution(1.2)
       this.world.createCollider(desc)
