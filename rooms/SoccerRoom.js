@@ -258,9 +258,9 @@ export class SoccerRoom extends Room {
       .setRestitution(0.0)
     this.world.createCollider(baseCollider, body)
 
-    // 2. Top Cylinder (Rounded top for ball resting) - DOUBLED SIZE (Mushroom shape)
+    // 2. Top Cylinder (Rounded top for ball resting) - HALVED SIZE
     // Slightly smaller radius to avoid catching on walls
-    const topCollider = RAPIER.ColliderDesc.cylinder(0.1, 0.55) 
+    const topCollider = RAPIER.ColliderDesc.cylinder(0.1, 0.275) 
       .setTranslation(0, 0.45, 0) // Sit on top of base
       .setFriction(2.0) // High friction for grip
       .setRestitution(0.0)
@@ -667,8 +667,8 @@ export class SoccerRoom extends Room {
         const dz = ballPos.z - playerPos.z
         const dy = ballPos.y - playerPos.y
         
-        // Zone: Within 0.8m radius horizontally (DOUBLED), and 0.4m - 1.2m vertically
-        if (Math.sqrt(dx*dx + dz*dz) < 0.8 && dy > 0.4 && dy < 1.2) {
+        // Zone: Within 0.4m radius horizontally (HALVED), and 0.4m - 1.2m vertically
+        if (Math.sqrt(dx*dx + dz*dz) < 0.4 && dy > 0.4 && dy < 1.2) {
           // Check player stability (not turning too fast)
           const rotY = player.rotY || 0
           // Simple turn speed check could be added here if we tracked prevRotY
