@@ -634,28 +634,7 @@ export class SoccerRoom extends Room {
       player.z = newZ
       player.rotY = rotY
 
-      // Ball carrying logic: If ball is on top, transfer player velocity to it
-      if (this.ballBody) {
-        const ballPos = this.ballBody.translation()
-        const dx = ballPos.x - currentPos.x
-        const dz = ballPos.z - currentPos.z
-        const distHz = Math.sqrt(dx * dx + dz * dz)
-        const dy = ballPos.y - currentPos.y
-
-        // Check if ball is roughly on top (within horizontal radius and vertical range)
-        // distHz < 1.2 covers the player width + ball radius
-        // dy > 0.5 && dy < 3.0 covers the height above the player origin
-        if (distHz < 1.2 && dy > 0.5 && dy < 3.0) {
-           const ballVel = this.ballBody.linvel()
-           // Blend ball velocity towards player velocity to "carry" it
-           // This helps overcome inertia and keeps the ball moving with the player
-           const newBallVx = ballVel.x * 0.85 + player.vx * 0.15
-           const newBallVz = ballVel.z * 0.85 + player.vz * 0.15
-           
-           this.ballBody.setLinvel({ x: newBallVx, y: ballVel.y, z: newBallVz }, true)
-        }
-      }
-
+      
 
     })
 
