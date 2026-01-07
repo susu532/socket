@@ -395,19 +395,20 @@ export class SoccerRoom extends Room {
       const kickMult = player.kickMult || 1
 
       // Apply impulse with a slight vertical boost for better feel
+      // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
-        x: impulseX * kickMult, 
-        y: (impulseY + 0.8) * kickMult, 
-        z: impulseZ * kickMult 
+        x: impulseX, 
+        y: impulseY + 0.8 * kickMult, // Add base vertical boost scaled by power
+        z: impulseZ 
       }, true)
 
       // Broadcast kick visual to all clients with impulse for prediction
       this.broadcast('ball-kicked', { 
         playerId: client.sessionId,
         impulse: { 
-          x: impulseX * kickMult, 
-          y: (impulseY + 3) * kickMult, 
-          z: impulseZ * kickMult 
+          x: impulseX, 
+          y: impulseY + 3 * kickMult, // Visual boost scaled
+          z: impulseZ 
         }
       })
     }
