@@ -131,7 +131,7 @@ export class SoccerRoom extends Room {
     const pitchWidth = 30
     const pitchDepth = 20
     const wallHeight = 10
-    const wallThickness = 20 // INCREASED from 2 to 20 for impenetrable walls
+    const wallThickness = 2
 
     // Ground
     const groundDesc = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.25, pitchDepth / 2)
@@ -139,7 +139,7 @@ export class SoccerRoom extends Room {
       .setFriction(2.0)
     this.world.createCollider(groundDesc)
 
-    // Back walls (Z axis) - Automatically adjusts position based on thickness
+    // Back walls (Z axis)
     const backWall1 = RAPIER.ColliderDesc.cuboid((pitchWidth + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2)
       .setTranslation(0, wallHeight / 2, -pitchDepth / 2 - wallThickness / 2)
     this.world.createCollider(backWall1)
@@ -164,12 +164,11 @@ export class SoccerRoom extends Room {
     })
 
     // Goal back walls (The "Net" back)
-    // Increased thickness to 20m (half=10). Adjusted X to keep inner face at +/- 16.2
-    // Original: x=17.2, half=1 -> Inner=16.2
-    // New: half=10 -> x=26.2 (Right), x=-26.2 (Left)
-    const goalBackWallPositions = [[-26.2, 0], [26.2, 0]]
+    // Matching "big wall" thickness (2m) and height (10m)
+    const goalBackWallPositions = [[-17.2, 0], [17.2, 0]]
     goalBackWallPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cuboid(10, 5, 5)
+      // halfX=1 (2m thick), halfY=5 (10m high), halfZ=5 (10m wide to overlap sides)
+      const desc = RAPIER.ColliderDesc.cuboid(1, 5, 5)
         .setTranslation(x, 5, z)
         .setRestitution(1.2)
       this.world.createCollider(desc)
@@ -202,15 +201,15 @@ export class SoccerRoom extends Room {
     this.world.createCollider(ceiling)
 
     // Goal side barriers (The "Net" sides)
-    // Increased thickness to 20m (half=10). Adjusted Z to keep inner face at +/- 2.5
-    // Original: z=3.5, half=1 -> Inner=2.5
-    // New: half=10 -> z=12.5 (Positive), z=-12.5 (Negative)
+    // Matching "big wall" thickness (2m) and height (10m)
+    // Depth: 5m (from 11.2 to 16.2), Center: 13.7, halfX: 2.5
+    // Position Z: Opening is 6m (+/- 3), Wall center: 3 + 1 = 4
     const barrierPositions = [
-      [13.7, -12.5], [-13.7, -12.5], [13.7, 12.5], [-13.7, 12.5]
+      [13.7, -3.5], [-13.7, -3.5], [13.7, 3.5], [-13.7, 3.5]
     ]
     barrierPositions.forEach(([x, z]) => {
-      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=10 (20m thick)
-      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 10)
+      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=1 (2m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 1)
         .setTranslation(x, 5, z)
         .setRestitution(1.2)
       this.world.createCollider(desc)
@@ -250,22 +249,12 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    // Compound Collider: Box Base + Cylinder Top (Rounded for dribbling)
-    // 1. Base Box (Flat sides) - HALVED SIZE
-    const baseCollider = RAPIER.ColliderDesc.cuboid(0.3, 0.2, 0.3)
+    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
       .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
-    this.world.createCollider(baseCollider, body)
 
-    // 2. Top Cylinder (Rounded top for ball resting) - HALVED SIZE
-    // Slightly smaller radius to avoid catching on walls
-    const topCollider = RAPIER.ColliderDesc.cylinder(0.1, 0.275) 
-      .setTranslation(0, 0.45, 0) // Sit on top of base
-      .setFriction(2.0) // High friction for grip
-      .setRestitution(0.0)
-    this.world.createCollider(topCollider, body)
-
+    this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
 
     return { x: spawnX, y: 0.1, z: 0 }
@@ -651,109 +640,6 @@ export class SoccerRoom extends Room {
 
 
     // 2. Step physics world
-    // === DRIBBLE STABILIZATION (Assisted Physics) ===
-    if (this.ballBody) {
-      const ballPos = this.ballBody.translation()
-      const ballVel = this.ballBody.linvel()
-      
-      this.state.players.forEach((player, sessionId) => {
-        const body = this.playerBodies.get(sessionId)
-        if (!body) return
-        
-        const playerPos = body.translation()
-        
-        // Check if ball is in "Dribble Zone" (Above player)
-        const dx = ballPos.x - playerPos.x
-        const dz = ballPos.z - playerPos.z
-        const dy = ballPos.y - playerPos.y
-        
-        // Zone: Within 0.4m radius horizontally (HALVED), and 0.4m - 1.6m vertically (INCREASED HEIGHT)
-        const isDribbling = Math.sqrt(dx*dx + dz*dz) < 0.4 && dy > 0.4 && dy < 1.6
-        
-        // === AUTO-SCOOP MECHANIC ===
-        // If player runs into ball at high speed while it's low, pop it up
-        // This helps lift the ball onto the head
-        const dist = Math.sqrt(dx*dx + dz*dz)
-        const speed = Math.sqrt((player.vx||0)**2 + (player.vz||0)**2)
-        
-        // Scoop conditions: Close, Low Ball, Fast Player, Cooldown
-        if (!isDribbling && dist < 0.6 && dy < 0.5 && speed > 6) {
-           const now = Date.now()
-           if (!player.lastScoopTime || now - player.lastScoopTime > 500) {
-             player.lastScoopTime = now
-             
-             // Apply scoop impulse
-             // Upward pop + slight forward push
-             this.ballBody.applyImpulse({
-               x: (player.vx || 0) * 0.5,
-               y: 4.0, // Strong pop
-               z: (player.vz || 0) * 0.5
-             }, true)
-             
-             return // Skip stabilization if scooping
-           }
-        }
-
-        if (isDribbling) {
-          // Check player stability (not turning too fast)
-          const rotY = player.rotY || 0
-          
-          // === 1. Rotational Velocity Matching ===
-          // Calculate tangential velocity from player rotation
-          // This allows the ball to "stick" during turns
-          // Tangential V = Angular V * Radius (approximate)
-          // We don't have exact angular velocity from client, but we can infer or just use linear approximation
-          // For now, we'll use the player's linear velocity which already includes some turn momentum if they are moving
-          // But to really sell the "stick", we need to account for the offset from center
-          
-          // Calculate target velocity at the ball's position relative to player center
-          // V_point = V_com + w x r
-          // We'll stick to linear matching for now but with higher grip
-          
-          const gripStrength = 0.2 // Increased from 0.15 for smaller collider
-          const targetVx = player.vx || 0
-          const targetVz = player.vz || 0
-          
-          // Apply impulse to correct velocity difference
-          const impulseX = (targetVx - ballVel.x) * gripStrength * 3.0 // Mass 3.0
-          const impulseZ = (targetVz - ballVel.z) * gripStrength * 3.0
-          
-          // === 2. Progressive Centering ===
-          // Non-linear force: Weak at center (skill), strong at edges (safety)
-          const normalizedDist = Math.min(dist / 0.4, 1.0) // 0 to 1
-          const centerStrength = 0.02 + (normalizedDist * normalizedDist) * 0.15 // 0.02 -> 0.17
-          
-          const centerImpulseX = -dx * centerStrength * 3.0
-          const centerImpulseZ = -dz * centerStrength * 3.0
-          
-          // === 3. PID Vertical Suspension ===
-          // Spring-Damper system for smooth floating
-          const targetHeight = 0.65 // Ideal hover height above player center
-          const currentHeight = dy
-          const heightError = targetHeight - currentHeight
-          
-          const springStiffness = 150.0
-          const springDamping = 10.0
-          
-          // F = k*x - c*v
-          // We only want to correct vertical velocity relative to player (which is 0 usually)
-          const springForce = (heightError * springStiffness) - (ballVel.y * springDamping)
-          
-          // Apply gravity compensation (approximate)
-          const gravityComp = 20.0 * 3.0 * (1.0 / 60.0) // Gravity * Mass * dt
-          
-          const impulseY = (springForce * (1.0/60.0)) + gravityComp
-
-          // Apply total stabilization impulse
-          this.ballBody.applyImpulse({
-            x: impulseX + centerImpulseX,
-            y: Math.max(0, impulseY), // Only push up, never pull down
-            z: impulseZ + centerImpulseZ
-          }, true)
-        }
-      })
-    }
-
     this.world.step()
 
     // Check goal
@@ -765,7 +651,7 @@ export class SoccerRoom extends Room {
       const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-      this.state.ball.x = pos.x
+            this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
