@@ -667,15 +667,50 @@ export class SoccerRoom extends Room {
         const dz = ballPos.z - playerPos.z
         const dy = ballPos.y - playerPos.y
         
-        // Zone: Within 0.4m radius horizontally (HALVED), and 0.4m - 1.2m vertically
-        if (Math.sqrt(dx*dx + dz*dz) < 0.4 && dy > 0.4 && dy < 1.2) {
+        // Zone: Within 0.4m radius horizontally (HALVED), and 0.4m - 1.6m vertically (INCREASED HEIGHT)
+        const isDribbling = Math.sqrt(dx*dx + dz*dz) < 0.4 && dy > 0.4 && dy < 1.6
+        
+        // === AUTO-SCOOP MECHANIC ===
+        // If player runs into ball at high speed while it's low, pop it up
+        // This helps lift the ball onto the head
+        const dist = Math.sqrt(dx*dx + dz*dz)
+        const speed = Math.sqrt((player.vx||0)**2 + (player.vz||0)**2)
+        
+        // Scoop conditions: Close, Low Ball, Fast Player, Cooldown
+        if (!isDribbling && dist < 0.6 && dy < 0.5 && speed > 6) {
+           const now = Date.now()
+           if (!player.lastScoopTime || now - player.lastScoopTime > 500) {
+             player.lastScoopTime = now
+             
+             // Apply scoop impulse
+             // Upward pop + slight forward push
+             this.ballBody.applyImpulse({
+               x: (player.vx || 0) * 0.5,
+               y: 4.0, // Strong pop
+               z: (player.vz || 0) * 0.5
+             }, true)
+             
+             return // Skip stabilization if scooping
+           }
+        }
+
+        if (isDribbling) {
           // Check player stability (not turning too fast)
           const rotY = player.rotY || 0
-          // Simple turn speed check could be added here if we tracked prevRotY
           
-          // 1. Horizontal Damping (Friction/Grip)
-          // Match ball velocity to player velocity
-          const gripStrength = 0.15 // How strongly we pull ball to player speed
+          // === 1. Rotational Velocity Matching ===
+          // Calculate tangential velocity from player rotation
+          // This allows the ball to "stick" during turns
+          // Tangential V = Angular V * Radius (approximate)
+          // We don't have exact angular velocity from client, but we can infer or just use linear approximation
+          // For now, we'll use the player's linear velocity which already includes some turn momentum if they are moving
+          // But to really sell the "stick", we need to account for the offset from center
+          
+          // Calculate target velocity at the ball's position relative to player center
+          // V_point = V_com + w x r
+          // We'll stick to linear matching for now but with higher grip
+          
+          const gripStrength = 0.2 // Increased from 0.15 for smaller collider
           const targetVx = player.vx || 0
           const targetVz = player.vz || 0
           
@@ -683,23 +718,36 @@ export class SoccerRoom extends Room {
           const impulseX = (targetVx - ballVel.x) * gripStrength * 3.0 // Mass 3.0
           const impulseZ = (targetVz - ballVel.z) * gripStrength * 3.0
           
-          // 2. Centering Force (Magnetism)
-          // Gently pull ball towards center of car to prevent sliding off
-          const centerStrength = 0.05
+          // === 2. Progressive Centering ===
+          // Non-linear force: Weak at center (skill), strong at edges (safety)
+          const normalizedDist = Math.min(dist / 0.4, 1.0) // 0 to 1
+          const centerStrength = 0.02 + (normalizedDist * normalizedDist) * 0.15 // 0.02 -> 0.17
+          
           const centerImpulseX = -dx * centerStrength * 3.0
           const centerImpulseZ = -dz * centerStrength * 3.0
           
-          // 3. Vertical Suspension
-          // If ball is sinking too low, prop it up slightly
-          let impulseY = 0
-          if (dy < 0.6) {
-             impulseY = 0.1 * 3.0 // Gentle lift
-          }
+          // === 3. PID Vertical Suspension ===
+          // Spring-Damper system for smooth floating
+          const targetHeight = 0.65 // Ideal hover height above player center
+          const currentHeight = dy
+          const heightError = targetHeight - currentHeight
+          
+          const springStiffness = 150.0
+          const springDamping = 10.0
+          
+          // F = k*x - c*v
+          // We only want to correct vertical velocity relative to player (which is 0 usually)
+          const springForce = (heightError * springStiffness) - (ballVel.y * springDamping)
+          
+          // Apply gravity compensation (approximate)
+          const gravityComp = 20.0 * 3.0 * (1.0 / 60.0) // Gravity * Mass * dt
+          
+          const impulseY = (springForce * (1.0/60.0)) + gravityComp
 
           // Apply total stabilization impulse
           this.ballBody.applyImpulse({
             x: impulseX + centerImpulseX,
-            y: impulseY,
+            y: Math.max(0, impulseY), // Only push up, never pull down
             z: impulseZ + centerImpulseZ
           }, true)
         }
