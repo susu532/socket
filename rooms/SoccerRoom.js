@@ -7,133 +7,6 @@ const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz for high-precision physics
 const GOAL_COOLDOWN = 5000          // 5 seconds
 const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
 
-// ═══════════════════════════════════════════════════════════════════════════
-// S-TIER ROCKET LEAGUE PHYSICS CONSTANTS (SYNCED WITH CLIENT)
-// ═══════════════════════════════════════════════════════════════════════════
-const BALL_RADIUS = 0.8
-const PLAYER_RADIUS = 0.5
-const BALL_RESTITUTION = 0.75
-
-// Ground Lifting System
-const GROUND_PROXIMITY_THRESHOLD = BALL_RADIUS * 1.3
-const GROUND_LIFT_MULTIPLIER = 1.85
-const SCOOP_ANGLE_BONUS = 0.7
-const GROUND_FORWARD_TRANSFER = 0.6
-
-// Roof Dribbling System
-const ROOF_DETECT_HEIGHT = 1.0
-const ROOF_DETECT_RADIUS = 1.2
-const ROOF_DAMPING_FACTOR = 0.88
-const ROOF_PULL_STRENGTH = 2.8
-const ROOF_DEADZONE = 0.15
-const ROOF_VELOCITY_THRESHOLD = 15
-
-// Contact Precision System
-const CONTACT_ZONE_FRONT = Math.PI / 4
-const CONTACT_ZONE_SIDE = (3 * Math.PI) / 4
-const FRONT_HIT_FORWARD_BIAS = 1.3
-const SIDE_HIT_PERPENDICULAR = 0.4
-const BACK_HIT_CHIP_MULTIPLIER = 1.5
-
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS - ROCKET LEAGUE MECHANICS
-// ═══════════════════════════════════════════════════════════════════════════
-
-const calculateContactZone = (playerPos, playerRotY, ballPos) => {
-  const dx = ballPos.x - playerPos.x
-  const dz = ballPos.z - playerPos.z
-  const dist = Math.sqrt(dx * dx + dz * dz) || 1
-  const toBallX = dx / dist
-  const toBallZ = dz / dist
-  
-  const forwardX = Math.sin(playerRotY)
-  const forwardZ = Math.cos(playerRotY)
-  
-  const dot = forwardX * toBallX + forwardZ * toBallZ
-  const angle = Math.acos(Math.max(-1, Math.min(1, dot)))
-  
-  if (angle < CONTACT_ZONE_FRONT) return 'front'
-  if (angle < CONTACT_ZONE_SIDE) return 'side'
-  return 'back'
-}
-
-const applyGroundLiftBias = (impulse, ballY, playerVelY) => {
-  if (ballY >= GROUND_PROXIMITY_THRESHOLD) return impulse
-  
-  let liftMultiplier = GROUND_LIFT_MULTIPLIER
-  if (playerVelY > 0.5) liftMultiplier += SCOOP_ANGLE_BONUS
-  
-  impulse.y *= liftMultiplier
-  
-  const horizontalMag = Math.sqrt(impulse.x * impulse.x + impulse.z * impulse.z)
-  if (horizontalMag > 0.1) {
-    impulse.x *= 1 + GROUND_FORWARD_TRANSFER
-    impulse.z *= 1 + GROUND_FORWARD_TRANSFER
-  }
-  return impulse
-}
-
-const applyRoofMagnetism = (ballPos, ballVel, playerPos, delta) => {
-  const dx = ballPos.x - playerPos.x
-  const dy = ballPos.y - (playerPos.y + ROOF_DETECT_HEIGHT)
-  const dz = ballPos.z - playerPos.z
-  const horizontalDist = Math.sqrt(dx * dx + dz * dz)
-  
-  const isOnRoof = dy > 0 && 
-                   dy < BALL_RADIUS * 2 && 
-                   horizontalDist < ROOF_DETECT_RADIUS
-  
-  if (!isOnRoof) return { damping: 1.0, pull: { x: 0, y: 0, z: 0 } }
-  
-  const ballSpeed = Math.sqrt(ballVel.x * ballVel.x + ballVel.y * ballVel.y + ballVel.z * ballVel.z)
-  if (ballSpeed > ROOF_VELOCITY_THRESHOLD) {
-    return { damping: 1.0, pull: { x: 0, y: 0, z: 0 } }
-  }
-  
-  const pull = { x: 0, y: 0, z: 0 }
-  if (horizontalDist > ROOF_DEADZONE) {
-    const invH = 1 / horizontalDist
-    const pullX = (playerPos.x - ballPos.x) * invH
-    const pullZ = (playerPos.z - ballPos.z) * invH
-    
-    const strength = Math.min(1, horizontalDist / ROOF_DETECT_RADIUS)
-    pull.x = pullX * ROOF_PULL_STRENGTH * strength * delta
-    pull.z = pullZ * ROOF_PULL_STRENGTH * strength * delta
-  }
-  
-  return {
-    damping: ROOF_DAMPING_FACTOR,
-    pull: pull
-  }
-}
-
-const applyContactZoneModifiers = (impulse, zone, playerRotY, nx, nz) => {
-  const forwardX = Math.sin(playerRotY)
-  const forwardZ = Math.cos(playerRotY)
-  const impulseLen = Math.sqrt(impulse.x * impulse.x + impulse.y * impulse.y + impulse.z * impulse.z)
-  
-  switch(zone) {
-    case 'front':
-      impulse.x += forwardX * impulseLen * FRONT_HIT_FORWARD_BIAS
-      impulse.z += forwardZ * impulseLen * FRONT_HIT_FORWARD_BIAS
-      break
-    case 'side':
-      const perpX = -forwardZ
-      const perpZ = forwardX
-      const sideDir = Math.sign(perpX * nx + perpZ * nz)
-      impulse.x += perpX * sideDir * impulseLen * SIDE_HIT_PERPENDICULAR
-      impulse.z += perpZ * sideDir * impulseLen * SIDE_HIT_PERPENDICULAR
-      impulse.y *= 1.2
-      break
-    case 'back':
-      impulse.y *= BACK_HIT_CHIP_MULTIPLIER
-      impulse.x *= 0.7
-      impulse.z *= 0.7
-      break
-  }
-  return impulse
-}
-
 export class SoccerRoom extends Room {
   maxClients = 4
 
@@ -376,7 +249,7 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.5, 0.2, 0.5)
+    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
       .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
@@ -520,32 +393,23 @@ export class SoccerRoom extends Room {
     if (dist < 1.7) {
       const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
-      const playerRotY = player.inputRotY || 0
-      const playerVelY = player.vy || 0
 
-      // 1. Calculate contact zone
-      const zone = calculateContactZone(playerPos, playerRotY, ballPos)
+      // Apply impulse with a slight vertical boost for better feel
+      // Note: impulse is already scaled by kickMult from client
+      this.ballBody.applyImpulse({ 
+        x: impulseX, 
+        y: impulseY + 0.8 * kickMult, // Add base vertical boost scaled by power
+        z: impulseZ 
+      }, true)
 
-      // 2. Base impulse from client (already scaled by kickMult)
-      let impulse = { x: impulseX, y: impulseY, z: impulseZ }
-
-      // 3. Apply Ground Lift Bias (scoop mechanics)
-      impulse = applyGroundLiftBias(impulse, ballPos.y, playerVelY)
-
-      // 4. Apply Contact Zone Modifiers (directional control)
-      const invD = 1 / Math.max(dist, 0.1)
-      const nx = dx * invD
-      const nz = dz * invD
-      impulse = applyContactZoneModifiers(impulse, zone, playerRotY, nx, nz)
-
-      // Apply final impulse to RAPIER body
-      this.ballBody.applyImpulse(impulse, true)
-
-      // Broadcast kick visual to all clients with final impulse for prediction
+      // Broadcast kick visual to all clients with impulse for prediction
       this.broadcast('ball-kicked', { 
         playerId: client.sessionId,
-        impulse: impulse,
-        zone: zone
+        impulse: { 
+          x: impulseX, 
+          y: impulseY + 0.8 * kickMult, // Visual boost scaled
+          z: impulseZ 
+        }
       })
     }
   }
@@ -771,31 +635,7 @@ export class SoccerRoom extends Room {
       player.z = newZ
       player.rotY = rotY
 
-      // ═══════════════════════════════════════════════════════════════════
-      // ROCKET LEAGUE MODULE 5: ROOF DRIBBLE MAGNETISM
-      // ═══════════════════════════════════════════════════════════════════
-      if (this.ballBody) {
-        const ballPos = this.ballBody.translation()
-        const ballVel = this.ballBody.linvel()
-        const roofEffect = applyRoofMagnetism(
-          ballPos,
-          ballVel,
-          { x: newX, y: newY, z: newZ },
-          deltaTime
-        )
-
-        if (roofEffect.damping < 1.0) {
-          // Apply velocity damping to ball
-          this.ballBody.setLinvel({
-            x: ballVel.x * roofEffect.damping,
-            y: ballVel.y * roofEffect.damping,
-            z: ballVel.z * roofEffect.damping
-          }, true)
-
-          // Apply magnetism pull (as impulse)
-          this.ballBody.applyImpulse(roofEffect.pull, true)
-        }
-      }
+      
     })
 
 
@@ -912,7 +752,7 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(0.5, 0.2, 0.5)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
             .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
