@@ -19,6 +19,16 @@ export class PlayerState extends Schema {
     this.jumpCount = 0
     this.sessionId = ''
     
+    // Server-only input state (not synced)
+    this.inputX = 0
+    this.inputZ = 0
+    this.inputJump = false
+    this.inputRotY = 0
+    this.prevJump = false
+    
+    // Logic flags
+    this.resetPosition = false
+    
     // Power-up multipliers
     this.speedMult = 1
     this.jumpMult = 1
@@ -79,9 +89,6 @@ export class BallState extends Schema {
     this.ry = 0
     this.rz = 0
     this.rw = 1
-    this.avx = 0
-    this.avy = 0
-    this.avz = 0
   }
 }
 
@@ -95,10 +102,7 @@ defineTypes(BallState, {
   rx: 'number',
   ry: 'number',
   rz: 'number',
-  rw: 'number',
-  avx: 'number',
-  avy: 'number',
-  avz: 'number'
+  rw: 'number'
 })
 
 // Main game state

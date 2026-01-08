@@ -717,14 +717,9 @@ export class SoccerRoom extends Room {
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
 
-      // Update angular velocity for Magnus effect
-      const angvel = this.ballBody.angvel()
-      this.state.ball.avx = angvel.x
-      this.state.ball.avy = angvel.y
-      this.state.ball.avz = angvel.z
-
 
       // Limit angular velocity
+      const angvel = this.ballBody.angvel()
       const maxAv = 15.0
       const avSq = angvel.x ** 2 + angvel.y ** 2 + angvel.z ** 2
       if (avSq > maxAv ** 2) {
