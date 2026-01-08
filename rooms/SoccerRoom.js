@@ -343,6 +343,11 @@ export class SoccerRoom extends Room {
 
     this.broadcast('player-left', { sessionId: client.sessionId })
 
+    // Clear ball carrier if they left
+    if (this.state.ball.carriedBy === client.sessionId) {
+      this.state.ball.carriedBy = ''
+    }
+
     if (this.clients.length === 0 && !this.emptyDisposeTimeout) {
       this.emptyDisposeTimeout = this.clock.setTimeout(() => {
         if (this.clients.length === 0) {
@@ -397,6 +402,11 @@ export class SoccerRoom extends Room {
     if (dist < 3.5) {
       const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
+
+      // Release ball if being carried
+      if (this.state.ball.carriedBy === client.sessionId) {
+        this.state.ball.carriedBy = ''
+      }
 
       // Apply impulse with a slight vertical boost for better feel
       // Note: impulse is already scaled by kickMult from client
@@ -642,45 +652,66 @@ export class SoccerRoom extends Room {
       
     })
 
-    // 1.5 Ball-on-top sticking mechanic
+    // 1.5 Ball-on-top sticking mechanic (Hard-Lock)
     if (this.ballBody && this.state.players.size > 0) {
       const ballPos = this.ballBody.translation()
       const ballVel = this.ballBody.linvel()
-      let bestPlayer = null
-      let minDist = Infinity
+      
+      // If already being carried, check for release or maintain lock
+      if (this.state.ball.carriedBy) {
+        const carrier = this.state.players.get(this.state.ball.carriedBy)
+        if (carrier) {
+          const dx = ballPos.x - carrier.x
+          const dz = ballPos.z - carrier.z
+          const dy = ballPos.y - carrier.y
+          const horizontalDist = Math.sqrt(dx * dx + dz * dz)
 
-      this.state.players.forEach((player, sessionId) => {
-        const dx = ballPos.x - player.x
-        const dz = ballPos.z - player.z
-        const dy = ballPos.y - player.y
-        const horizontalDist = Math.sqrt(dx * dx + dz * dz)
-
-        // Detection: Ball is vertically balanced on player
-        // Ball radius 0.8, Player top ~0.4. Ideal ball center ~1.2.
-        if (dy > 0.8 && dy < 1.5 && horizontalDist < 0.5) {
-          if (horizontalDist < minDist) {
-            minDist = horizontalDist
-            bestPlayer = player
+          // Force release if ball gets too far (e.g. hit by something else)
+          if (dy < 0.5 || dy > 2.0 || horizontalDist > 1.0) {
+            this.state.ball.carriedBy = ''
+          } else {
+            // HARD LOCK: Force position and velocity
+            const targetX = carrier.x
+            const targetZ = carrier.z
+            const targetY = carrier.y + 1.2 // Fixed height above player
+            
+            this.ballBody.setTranslation({ x: targetX, y: targetY, z: targetZ }, true)
+            this.ballBody.setLinvel({ x: carrier.vx || 0, y: carrier.vy || 0, z: carrier.vz || 0 }, true)
+            
+            // Sync state immediately
+            this.state.ball.x = targetX
+            this.state.ball.y = targetY
+            this.state.ball.z = targetZ
+            this.state.ball.vx = carrier.vx || 0
+            this.state.ball.vy = carrier.vy || 0
+            this.state.ball.vz = carrier.vz || 0
           }
+        } else {
+          this.state.ball.carriedBy = ''
         }
-      })
+      } else {
+        // Detection: Look for a new carrier
+        let bestPlayer = null
+        let minDist = Infinity
 
-      if (bestPlayer) {
-        // Match velocity (including vertical for jumps)
-        const targetVx = bestPlayer.vx || 0
-        const targetVz = bestPlayer.vz || 0
-        const targetVy = bestPlayer.vy || 0
+        this.state.players.forEach((player, sessionId) => {
+          const dx = ballPos.x - player.x
+          const dz = ballPos.z - player.z
+          const dy = ballPos.y - player.y
+          const horizontalDist = Math.sqrt(dx * dx + dz * dz)
 
-        // Apply centering force (pull ball towards player center)
-        const dx = bestPlayer.x - ballPos.x
-        const dz = bestPlayer.z - ballPos.z
-        const centeringFactor = 5.0
-        
-        this.ballBody.setLinvel({
-          x: targetVx + dx * centeringFactor,
-          y: Math.max(ballVel.y, targetVy), // Don't let it fall through, but allow upward boost
-          z: targetVz + dz * centeringFactor
-        }, true)
+          // Detection: Ball is vertically balanced on player
+          if (dy > 0.8 && dy < 1.5 && horizontalDist < 0.4) {
+            if (horizontalDist < minDist) {
+              minDist = horizontalDist
+              bestPlayer = { player, sessionId }
+            }
+          }
+        })
+
+        if (bestPlayer) {
+          this.state.ball.carriedBy = bestPlayer.sessionId
+        }
       }
     }
 
