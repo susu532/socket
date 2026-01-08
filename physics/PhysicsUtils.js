@@ -144,7 +144,7 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
     
     // Apply a centering force proportional to distance
     // This acts like a "cup" on the roof
-    const CENTERING_STRENGTH = 2.0
+    const CENTERING_STRENGTH = 5.0
     impulseX += toCenterX * CENTERING_STRENGTH
     impulseZ += toCenterZ * CENTERING_STRENGTH
     
