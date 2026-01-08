@@ -390,7 +390,7 @@ export class SoccerRoom extends Room {
     const dz = ballPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if (dist < 2.2) {
+    if (dist < 1.7) {
       const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
 
