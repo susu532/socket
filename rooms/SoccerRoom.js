@@ -417,9 +417,11 @@ export class SoccerRoom extends Room {
     const wallThickness = 2
 
     // Ground
+    // S-TIER PHYSICS: High friction (1.0) for grass feel, moderate bounce (0.6)
     const groundDesc = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.25, pitchDepth / 2)
       .setTranslation(0, -0.25, 0)
-      .setFriction(2.0)
+      .setFriction(1.0)
+      .setRestitution(0.6)
     this.world.createCollider(groundDesc)
 
     // Back walls (Z axis)
@@ -443,6 +445,8 @@ export class SoccerRoom extends Room {
     sideWallPositions.forEach(([x, z]) => {
       const desc = RAPIER.ColliderDesc.cuboid(wallThickness / 2, wallHeight / 2, sideWallHalfDepth)
         .setTranslation(x, wallHeight / 2, z)
+        .setFriction(0.0) // Smooth walls
+        .setRestitution(0.6) // Bouncy walls
       this.world.createCollider(desc)
     })
 
@@ -453,7 +457,8 @@ export class SoccerRoom extends Room {
       // halfX=1 (2m thick), halfY=5 (10m high), halfZ=5 (10m wide to overlap sides)
       const desc = RAPIER.ColliderDesc.cuboid(1, 5, 5)
         .setTranslation(x, 5, z)
-        .setRestitution(1.2)
+        .setFriction(0.0)
+        .setRestitution(0.6)
       this.world.createCollider(desc)
     })
 
@@ -464,7 +469,8 @@ export class SoccerRoom extends Room {
     postPositions.forEach(([x, z]) => {
       const desc = RAPIER.ColliderDesc.cylinder(2, 0.06)
         .setTranslation(x, 2, z)
-        .setRestitution(0.8)
+        .setFriction(0.0) // Slippery metal
+        .setRestitution(1.0) // High bounce (PING!)
       this.world.createCollider(desc)
     })
 
@@ -474,7 +480,8 @@ export class SoccerRoom extends Room {
       const desc = RAPIER.ColliderDesc.cylinder(3, 0.06)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
-        .setRestitution(0.8)
+        .setFriction(0.0)
+        .setRestitution(1.0)
       this.world.createCollider(desc)
     })
 
@@ -512,15 +519,18 @@ export class SoccerRoom extends Room {
     const ballBodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, 2, 0)
       .setCcdEnabled(true)
-      .setLinearDamping(1.5)
-      .setAngularDamping(1.5)
+      .setLinearDamping(0.9)  // S-TIER: Increased from 1.5 to match Cannon 0.9 (relative to scale)
+      .setAngularDamping(0.99) // S-TIER: High angular damping to kill spin quickly
 
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
     const ballCollider = RAPIER.ColliderDesc.ball(0.8)
       .setMass(3.0)
-      .setRestitution(0.75)
-      .setFriction(0.5)
+      .setRestitution(0.6) // Moderate bounce
+      .setFriction(0.6)    // Moderate friction
+      // Note: Rapier combines coefficients. 
+      // Ball(0.6) + Ground(1.0) -> ~0.8 Friction
+      // Ball(0.6) + Ground(0.6) -> ~0.6 Restitution
 
     this.world.createCollider(ballCollider, this.ballBody)
   }
@@ -534,9 +544,9 @@ export class SoccerRoom extends Room {
 
     const collider = RAPIER.ColliderDesc.cuboid(0.5, 0.2, 0.5)
       .setTranslation(0, 0.2, 0)
-      .setFriction(2.0)
-      .setRestitution(0.0)
-
+      .setFriction(1.4) // High friction for grip
+      .setRestitution(0.0) // No bounce
+    
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
 
