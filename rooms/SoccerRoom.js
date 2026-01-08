@@ -191,7 +191,7 @@ export class SoccerRoom extends Room {
     // Crossbars
     const crossbarPositions = [[-10.8, 0], [10.8, 0]]
     crossbarPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(3, 0.06)
+      const desc = RAPIER.ColliderDesc.cylinder(3, 0.03) // Reduced thickness
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
         .setRestitution(0.8)
