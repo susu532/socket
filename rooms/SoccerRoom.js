@@ -645,19 +645,7 @@ export class SoccerRoom extends Room {
 
 
     // 2. Step physics world
-    // Sub-step physics for high-speed ball to prevent tunneling
-    let subSteps = 1
-    if (this.ballBody) {
-      const vel = this.ballBody.linvel()
-      const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z)
-      // Dynamic sub-stepping based on speed
-      if (speed > 40) subSteps = 4
-      else if (speed > 25) subSteps = 2
-    }
-
-    for (let i = 0; i < subSteps; i++) {
-      this.world.step()
-    }
+    this.world.step()
 
     // Detect and broadcast ball-player collisions
     if (this.ballBody && this.ballCollider) {
@@ -669,11 +657,9 @@ export class SoccerRoom extends Room {
           const contact = this.world.contactPair(this.ballCollider, playerCollider)
           if (contact && contact.hasAnyActiveContact) {
             const player = this.state.players.get(sessionId)
-            const body = this.playerBodies.get(sessionId)
-            if (player && body) {
+            if (player) {
               const vel = this.ballBody.linvel()
               const pos = this.ballBody.translation()
-              const playerPos = body.translation()
               
               // Broadcast high-frequency collision event
               this.broadcast('ball-collision', {
@@ -684,10 +670,7 @@ export class SoccerRoom extends Room {
                 vz: vel.z,
                 x: pos.x,
                 y: pos.y,
-                z: pos.z,
-                // Rocket League-style data for client prediction
-                impulseMagnitude: Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z),
-                contactHeight: (pos.y - playerPos.y) / 0.6 // Normalized height (approx)
+                z: pos.z
               }, { afterNextPatch: true })
             }
           }
