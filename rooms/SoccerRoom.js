@@ -249,8 +249,8 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cylinder(0.8, 0.7)
-      .setTranslation(0, 0.8, 0)
+    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+      .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
 
@@ -635,57 +635,7 @@ export class SoccerRoom extends Room {
       player.z = newZ
       player.rotY = rotY
 
-      // 1.1 Rocket League Style Dribbling Logic
-      if (this.ballBody) {
-        const ballPos = this.ballBody.translation()
-        const ballVel = this.ballBody.linvel()
-        const dx = ballPos.x - currentPos.x
-        const dz = ballPos.z - currentPos.z
-        const distXZ = Math.sqrt(dx * dx + dz * dz)
-        
-        const isGiant = player.giant || false
-        const giantScale = isGiant ? 10 : 1
-        const dribbleRadius = 1.5 * giantScale
-        const playerHeight = 1.6 * giantScale
-        
-        if (distXZ < dribbleRadius) {
-          // A. LIFT: Pop the ball up if it's low and we're moving into it
-          if (ballPos.y < 1.2 * giantScale && ballVel.y < 1.0) {
-            const relVx = player.vx - ballVel.x
-            const relVz = player.vz - ballVel.z
-            const closingSpeed = (relVx * dx + relVz * dz) / (distXZ + 0.01)
-            
-            if (closingSpeed > 2.0) {
-              this.ballBody.applyImpulse({ x: 0, y: 0.5 * giantScale, z: 0 }, true)
-            }
-          }
-          
-          // B. STABILIZATION: Keep ball on head if it's already there
-          if (ballPos.y > playerHeight && ballPos.y < playerHeight + 2.0 * giantScale) {
-            // Centering force
-            const centeringPower = 15.0 * giantScale
-            const forceX = -dx * centeringPower
-            const forceZ = -dz * centeringPower
-            
-            // Anti-gravity lift to make it feel "floaty" on head
-            const antiGravity = 12.0 * giantScale
-            
-            this.ballBody.applyImpulse({ 
-              x: forceX * deltaTime, 
-              y: antiGravity * deltaTime, 
-              z: forceZ * deltaTime 
-            }, true)
-            
-            // Dampen ball velocity relative to player for "stickiness"
-            const stickiness = 0.1
-            const targetVelX = player.vx
-            const targetVelZ = player.vz
-            const newVelX = ballVel.x + (targetVelX - ballVel.x) * stickiness
-            const newVelZ = ballVel.z + (targetVelZ - ballVel.z) * stickiness
-            this.ballBody.setLinvel({ x: newVelX, y: ballVel.y, z: newVelZ }, true)
-          }
-        }
-      }
+      
     })
 
 
@@ -781,9 +731,10 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT cylinder collider
-        const giantCollider = RAPIER.ColliderDesc.cylinder(8.0, 7.0)
-          .setTranslation(0, 8.0, 0) // Shift up so it doesn't clip ground
+        // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
+        // Normal is 0.6, so this is 10x bigger
+        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
+          .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
         
@@ -801,8 +752,8 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cylinder(0.8, 0.7)
-            .setTranslation(0, 0.8, 0)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+            .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
           
