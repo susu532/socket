@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
 import { calculateRocketLeagueImpulse } from '../physics/PhysicsUtils.js'
+import { COLLISION_CONFIG } from '../physics/CollisionConfig.js'
 
 const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz for high-precision physics
 const GOAL_COOLDOWN = 5000          // 5 seconds
@@ -252,7 +253,7 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+    const collider = RAPIER.ColliderDesc.cuboid(COLLISION_CONFIG.PLAYER_RADIUS, 0.2, COLLISION_CONFIG.PLAYER_RADIUS)
       .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
@@ -825,9 +826,9 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
-        // Normal is 0.6, so this is 10x bigger
-        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
+        // Create GIANT collider (Radius * 10)
+        const giantRadius = COLLISION_CONFIG.PLAYER_RADIUS * 10
+        const giantCollider = RAPIER.ColliderDesc.cuboid(giantRadius, 4.0, giantRadius)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
@@ -846,7 +847,7 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(COLLISION_CONFIG.PLAYER_RADIUS, 0.2, COLLISION_CONFIG.PLAYER_RADIUS)
             .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
