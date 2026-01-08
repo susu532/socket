@@ -642,6 +642,48 @@ export class SoccerRoom extends Room {
       
     })
 
+    // 1.5 Ball-on-top sticking mechanic
+    if (this.ballBody && this.state.players.size > 0) {
+      const ballPos = this.ballBody.translation()
+      const ballVel = this.ballBody.linvel()
+      let bestPlayer = null
+      let minDist = Infinity
+
+      this.state.players.forEach((player, sessionId) => {
+        const dx = ballPos.x - player.x
+        const dz = ballPos.z - player.z
+        const dy = ballPos.y - player.y
+        const horizontalDist = Math.sqrt(dx * dx + dz * dz)
+
+        // Detection: Ball is vertically balanced on player
+        // Ball radius 0.8, Player top ~0.4. Ideal ball center ~1.2.
+        if (dy > 0.8 && dy < 1.5 && horizontalDist < 0.5) {
+          if (horizontalDist < minDist) {
+            minDist = horizontalDist
+            bestPlayer = player
+          }
+        }
+      })
+
+      if (bestPlayer) {
+        // Match velocity (including vertical for jumps)
+        const targetVx = bestPlayer.vx || 0
+        const targetVz = bestPlayer.vz || 0
+        const targetVy = bestPlayer.vy || 0
+
+        // Apply centering force (pull ball towards player center)
+        const dx = bestPlayer.x - ballPos.x
+        const dz = bestPlayer.z - ballPos.z
+        const centeringFactor = 5.0
+        
+        this.ballBody.setLinvel({
+          x: targetVx + dx * centeringFactor,
+          y: Math.max(ballVel.y, targetVy), // Don't let it fall through, but allow upward boost
+          z: targetVz + dz * centeringFactor
+        }, true)
+      }
+    }
+
 
 
     // 2. Step physics world
