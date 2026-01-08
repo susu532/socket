@@ -20,7 +20,9 @@ export class SoccerRoom extends Room {
   // Physics world
   world = null
   playerBodies = new Map()
+  playerColliders = new Map()
   ballBody = null
+  ballCollider = null
 
   // Timers
   lastGoalTime = 0
@@ -239,7 +241,7 @@ export class SoccerRoom extends Room {
       .setRestitution(0.75)
       .setFriction(0.5)
 
-    this.world.createCollider(ballCollider, this.ballBody)
+    this.ballCollider = this.world.createCollider(ballCollider, this.ballBody)
   }
 
   createPlayerBody(sessionId, team) {
@@ -254,8 +256,9 @@ export class SoccerRoom extends Room {
       .setFriction(2.0)
       .setRestitution(0.0)
 
-    this.world.createCollider(collider, body)
+    const playerCollider = this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
+    this.playerColliders.set(sessionId, playerCollider)
 
     return { x: spawnX, y: 0.1, z: 0 }
   }
@@ -331,6 +334,7 @@ export class SoccerRoom extends Room {
     if (body) {
       this.world.removeRigidBody(body)
       this.playerBodies.delete(client.sessionId)
+      this.playerColliders.delete(client.sessionId)
     }
 
     this.state.players.delete(client.sessionId)
@@ -644,11 +648,14 @@ export class SoccerRoom extends Room {
     this.world.step()
 
     // Detect and broadcast ball-player collisions
-    if (this.ballBody) {
-      this.world.contactsWith(this.ballBody, (collider) => {
-        // Find player associated with this collider
-        for (const [sessionId, body] of this.playerBodies) {
-          if (body.containsCollider(collider)) {
+    if (this.ballBody && this.ballCollider) {
+      for (const [sessionId, playerCollider] of this.playerColliders) {
+        // Check for contact between ball and player
+        // contactPair returns a ContactPair object if they are close/touching
+        // We check if there is an active contact
+        try {
+          const contact = this.world.contactPair(this.ballCollider, playerCollider)
+          if (contact && contact.hasAnyActiveContact) {
             const player = this.state.players.get(sessionId)
             if (player) {
               const vel = this.ballBody.linvel()
@@ -664,12 +671,13 @@ export class SoccerRoom extends Room {
                 x: pos.x,
                 y: pos.y,
                 z: pos.z
-              }, { afterNextPatch: true }) // Optimize network traffic
+              }, { afterNextPatch: true })
             }
-            break
           }
+        } catch (e) {
+          // Ignore potential errors if colliders are invalid
         }
-      })
+      }
     }
 
     // Check goal
