@@ -133,8 +133,20 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
     const targetVz = playerState.vz
     
     // Soft blend towards target
-    impulseX = (targetVx - ballState.vx) * CARRY_STICKINESS * 3.0 // *3.0 to account for mass?
+    impulseX = (targetVx - ballState.vx) * CARRY_STICKINESS * 3.0
     impulseZ = (targetVz - ballState.vz) * CARRY_STICKINESS * 3.0
+    
+    // 3. Centering Force (Anti-Slide)
+    // Pull the ball towards the center of the player to prevent sliding off
+    // Calculate vector from ball to player center (horizontal only)
+    const toCenterX = playerState.x - ballState.x
+    const toCenterZ = playerState.z - ballState.z
+    
+    // Apply a centering force proportional to distance
+    // This acts like a "cup" on the roof
+    const CENTERING_STRENGTH = 2.0
+    impulseX += toCenterX * CENTERING_STRENGTH
+    impulseZ += toCenterZ * CENTERING_STRENGTH
     
     // Add a little upward force to keep it floating
     impulseY += 2.0 
