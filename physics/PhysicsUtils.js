@@ -9,7 +9,10 @@ const {
   GIANT_VERTICAL_LIFT,
   MOMENTUM_TRANSFER,
   AERIAL_MOMENTUM,
-  SPECULATIVE_IMPULSE_FACTOR
+  SPECULATIVE_IMPULSE_FACTOR,
+  CARRY_HEIGHT_THRESHOLD,
+  CARRY_STICKINESS,
+  CARRY_LIFT_REDUCTION
 } = COLLISION_CONFIG
 
 /**
@@ -106,6 +109,42 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
     impulseY += Math.abs(playerState.vy) * AERIAL_MOMENTUM
   }
   
+
+  
+  // === CARRY / DRIBBLE CHECK ===
+  // If player is UNDER the ball and moving with it, we want to "carry" it
+  // Normal points from player to ball. If Y component is high, ball is on top.
+  if (ny > CARRY_HEIGHT_THRESHOLD) {
+    // We are carrying!
+    
+    // 1. Reduce vertical bounce (so it doesn't fly away)
+    impulseY *= CARRY_LIFT_REDUCTION
+    
+    // 2. Match horizontal velocity (Stickiness)
+    // Blend impulse to match player's velocity instead of bouncing off
+    // Target velocity = Player Velocity
+    // Impulse needed = (TargetVel - BallVel) * MassFactor
+    
+    // We want the result to be: NewBallVel = PlayerVel
+    // Current calculation adds impulse to BallVel.
+    // So we modify impulse to achieve this.
+    
+    const targetVx = playerState.vx
+    const targetVz = playerState.vz
+    
+    // Soft blend towards target
+    impulseX = (targetVx - ballState.vx) * CARRY_STICKINESS * 3.0 // *3.0 to account for mass?
+    impulseZ = (targetVz - ballState.vz) * CARRY_STICKINESS * 3.0
+    
+    // Add a little upward force to keep it floating
+    impulseY += 2.0 
+    
+    return {
+      impulse: { x: impulseX, y: impulseY, z: impulseZ },
+      visualCue: 'dribble'
+    }
+  }
+
   return {
     impulse: { x: impulseX, y: impulseY, z: impulseZ },
     visualCue: hitZoneMultiplier > 1.2 ? 'power' : 'normal'
