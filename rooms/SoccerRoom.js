@@ -349,7 +349,9 @@ export class SoccerRoom extends Room {
     }
 
     // Physics world
-    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
+    // Physics world
+    // S-TIER PHYSICS: Sync with client gravity (20.0) for consistent prediction
+    this.world = new RAPIER.World({ x: 0, y: -20.0, z: 0 })
 
     // Create arena colliders
     this.createArena()
