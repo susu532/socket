@@ -89,6 +89,9 @@ export class BallState extends Schema {
     this.ry = 0
     this.rz = 0
     this.rw = 1
+    this.avx = 0
+    this.avy = 0
+    this.avz = 0
   }
 }
 
@@ -102,7 +105,10 @@ defineTypes(BallState, {
   rx: 'number',
   ry: 'number',
   rz: 'number',
-  rw: 'number'
+  rw: 'number',
+  avx: 'number',
+  avy: 'number',
+  avz: 'number'
 })
 
 // Main game state
