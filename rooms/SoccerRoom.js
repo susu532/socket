@@ -628,36 +628,8 @@ export class SoccerRoom extends Room {
       // Update physics body
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
 
-      // === ROCKET LEAGUE STYLE DRIBBLING (SCOOP & CRADLE) ===
-      if (this.ballBody) {
-        const ballPos = this.ballBody.translation()
-        const ballVel = this.ballBody.linvel()
-        
-        const dx = ballPos.x - newX
-        const dy = ballPos.y - newY
-        const dz = ballPos.z - newZ
-        const horizontalDist = Math.sqrt(dx * dx + dz * dz)
-        
-        // 1. Cradle: Stabilize ball on top of player
-        // If ball is above player and within horizontal range
-        if (horizontalDist < 1.0 && dy > 0.5 && dy < 1.8) {
-          // Gently lerp ball horizontal velocity towards player velocity
-          const cradleStrength = 0.15
-          this.ballBody.setLinvel({
-            x: ballVel.x + (player.vx - ballVel.x) * cradleStrength,
-            y: ballVel.y,
-            z: ballVel.z + (player.vz - ballVel.z) * cradleStrength
-          }, true)
-          
-          // 2. Scoop: Slight lift if ball is low and player is moving
-          const speed = Math.sqrt(player.vx * player.vx + player.vz * player.vz)
-          if (ballPos.y < 1.2 && speed > 2) {
-            this.ballBody.applyImpulse({ x: 0, y: 0.4, z: 0 }, true)
-          }
-        }
-      }
-
-      // Update state for sync
+      // Update state for sync (rounded to 3 decimal places)
+          // Update state for sync
       player.x = newX
       player.y = newY
       player.z = newZ
