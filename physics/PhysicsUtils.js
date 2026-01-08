@@ -9,10 +9,10 @@ const {
   GIANT_VERTICAL_LIFT,
   MOMENTUM_TRANSFER,
   AERIAL_MOMENTUM,
-  SPECULATIVE_IMPULSE_FACTOR,
   CARRY_HEIGHT_THRESHOLD,
   CARRY_STICKINESS,
-  CARRY_LIFT_REDUCTION
+  CARRY_LIFT_REDUCTION,
+  POPUP_FORCE
 } = COLLISION_CONFIG
 
 /**
@@ -53,28 +53,14 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
   // Project relative velocity onto normal
   const approachSpeed = relVx * nx + relVy * ny + relVz * nz
   
-  // If moving apart, no impulse (unless we want to force a push, but usually no)
-  // However, for "active" hits, we might want to apply force even if slightly separating
-  // For now, standard physics check:
-  // if (approachSpeed > 0) return { impulse: { x: 0, y: 0, z: 0 }, visualCue: 'none' }
-
   // 3. Hit Zone Multiplier (Rocket League style)
-  // Hood = Power, Wheels = Soft
-  // We need player radius. Assuming standard if not provided.
   const playerRadius = playerState.giant ? COLLISION_CONFIG.PLAYER_RADIUS * 10 : COLLISION_CONFIG.PLAYER_RADIUS
   const hitZoneMultiplier = getHitZoneMultiplier(ballState.y, playerState.y, playerRadius)
 
   // 4. Angle-Based Scaling
-  // Direct hits (dot product ~ -1) get full power. Glancing hits get less.
-  // Normal points FROM player TO ball. Relative vel points FROM ball TO player (approx).
-  // We want alignment between Normal and Player Velocity for "Power Hits"
-  
   const playerSpeed = Math.sqrt(playerState.vx * playerState.vx + playerState.vy * playerState.vy + playerState.vz * playerState.vz)
   
   // Calculate impulse magnitude
-  // J = -(1 + e) * v_rel_normal
-  // We add multipliers here
-  
   let impulseMag = -(1 + BALL_RESTITUTION) * approachSpeed
   
   // Clamp min impulse to avoid sticky collisions
@@ -98,37 +84,23 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
   impulseY += lift
   
   // 6. Momentum Transfer (Add player's velocity to ball)
-  // This gives the "carry" feel
   const momentumBoost = Math.min(1.5, 0.3 + playerSpeed / 20)
   impulseX += playerState.vx * MOMENTUM_TRANSFER * momentumBoost
   impulseZ += playerState.vz * MOMENTUM_TRANSFER * momentumBoost
   
   // 7. Aerial Bonus
-  // If player is in air and moving up, add extra lift
   if (playerState.y > 1.5 && playerState.vy > 2) {
     impulseY += Math.abs(playerState.vy) * AERIAL_MOMENTUM
   }
   
-
-  
   // === CARRY / DRIBBLE CHECK ===
-  // If player is UNDER the ball and moving with it, we want to "carry" it
-  // Normal points from player to ball. If Y component is high, ball is on top.
   if (ny > CARRY_HEIGHT_THRESHOLD) {
     // We are carrying!
     
-    // 1. Reduce vertical bounce (so it doesn't fly away)
+    // 1. Reduce vertical bounce
     impulseY *= CARRY_LIFT_REDUCTION
     
     // 2. Match horizontal velocity (Stickiness)
-    // Blend impulse to match player's velocity instead of bouncing off
-    // Target velocity = Player Velocity
-    // Impulse needed = (TargetVel - BallVel) * MassFactor
-    
-    // We want the result to be: NewBallVel = PlayerVel
-    // Current calculation adds impulse to BallVel.
-    // So we modify impulse to achieve this.
-    
     const targetVx = playerState.vx
     const targetVz = playerState.vz
     
@@ -137,13 +109,9 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
     impulseZ = (targetVz - ballState.vz) * CARRY_STICKINESS * 3.0
     
     // 3. Centering Force (Anti-Slide)
-    // Pull the ball towards the center of the player to prevent sliding off
-    // Calculate vector from ball to player center (horizontal only)
     const toCenterX = playerState.x - ballState.x
     const toCenterZ = playerState.z - ballState.z
     
-    // Apply a centering force proportional to distance
-    // This acts like a "cup" on the roof
     const CENTERING_STRENGTH = 5.0
     impulseX += toCenterX * CENTERING_STRENGTH
     impulseZ += toCenterZ * CENTERING_STRENGTH
@@ -154,6 +122,13 @@ export const calculateRocketLeagueImpulse = (ballState, playerState, collisionDa
     return {
       impulse: { x: impulseX, y: impulseY, z: impulseZ },
       visualCue: 'dribble'
+    }
+  } else {
+    // === POP-UP ASSIST ===
+    // If not carrying, but hitting from side/below, help it get up
+    // This fixes the issue where small colliders just hit the ball like a wall
+    if (ny > 0.1 && playerSpeed > 2.0) {
+      impulseY += POPUP_FORCE
     }
   }
 

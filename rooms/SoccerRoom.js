@@ -801,6 +801,7 @@ export class SoccerRoom extends Room {
 
   applyPowerUp(player, type) {
     const duration = this.POWER_UP_TYPES[type].duration
+    player.powerUpExpiresAt = Date.now() + duration
     
     if (type === 'speed') {
       player.speedMult = 2
@@ -828,7 +829,7 @@ export class SoccerRoom extends Room {
 
         // Create GIANT collider (Radius * 10)
         const giantRadius = COLLISION_CONFIG.PLAYER_RADIUS * 10
-        const giantCollider = RAPIER.ColliderDesc.cuboid(giantRadius, 4.0, giantRadius)
+        const giantCollider = RAPIER.ColliderDesc.cuboid(giantRadius, 2.0, giantRadius)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)

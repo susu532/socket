@@ -33,6 +33,7 @@ export class PlayerState extends Schema {
     this.speedMult = 1
     this.jumpMult = 1
     this.kickMult = 1
+    this.powerUpExpiresAt = 0
   }
 }
 
@@ -52,7 +53,8 @@ defineTypes(PlayerState, {
   sessionId: 'string',
   speedMult: 'number',
   jumpMult: 'number',
-  kickMult: 'number'
+  kickMult: 'number',
+  powerUpExpiresAt: 'number'
 })
 
 // Power-up state
