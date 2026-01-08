@@ -2,8 +2,6 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
-import { calculateRocketLeagueImpulse } from '../physics/PhysicsUtils.js'
-import { COLLISION_CONFIG } from '../physics/CollisionConfig.js'
 
 const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz for high-precision physics
 const GOAL_COOLDOWN = 5000          // 5 seconds
@@ -192,7 +190,7 @@ export class SoccerRoom extends Room {
     // Crossbars
     const crossbarPositions = [[-10.8, 0], [10.8, 0]]
     crossbarPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(3, 0.03) // Reduced thickness
+      const desc = RAPIER.ColliderDesc.cylinder(3, 0.06)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
         .setRestitution(0.8)
@@ -253,7 +251,7 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(COLLISION_CONFIG.PLAYER_RADIUS, 0.2, COLLISION_CONFIG.PLAYER_RADIUS)
+    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
       .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
@@ -665,75 +663,36 @@ export class SoccerRoom extends Room {
     if (this.ballBody && this.ballCollider) {
       for (const [sessionId, playerCollider] of this.playerColliders) {
         // Check for contact between ball and player
+        // contactPair returns a ContactPair object if they are close/touching
+        // We check if there is an active contact
         try {
           const contact = this.world.contactPair(this.ballCollider, playerCollider)
           if (contact && contact.hasAnyActiveContact) {
             const player = this.state.players.get(sessionId)
             const body = this.playerBodies.get(sessionId)
-            
-            // Check cooldown to prevent double-hits
-            const now = Date.now()
-            if (player && body && (!player.lastHitTime || now - player.lastHitTime > 100)) {
-              player.lastHitTime = now
-              
+            if (player && body) {
               const vel = this.ballBody.linvel()
               const pos = this.ballBody.translation()
               const playerPos = body.translation()
-              const playerVel = body.linvel() // Kinematic bodies have velocity if moving
               
-              // Prepare state objects for physics util
-              const ballState = {
-                x: pos.x, y: pos.y, z: pos.z,
-                vx: vel.x, vy: vel.y, vz: vel.z
-              }
-              
-              // Estimate player velocity from input if kinematic velocity is zero (common in some setups)
-              // But Rapier kinematic bodies should have linvel if moved via setNextKinematicTranslation
-              const pState = {
-                x: playerPos.x, y: playerPos.y, z: playerPos.z,
-                vx: player.vx || 0, vy: player.vy || 0, vz: player.vz || 0, // Use stored velocity from physics loop
-                giant: player.giant || false
-              }
-              
-              // Calculate Rocket League Impulse
-              const { impulse, visualCue } = calculateRocketLeagueImpulse(ballState, pState)
-              
-              // Apply Impulse to Ball (Override standard physics for this frame)
-              // We reset velocity to 0 relative to the impulse direction to ensure clean hit?
-              // Or just apply impulse. applyImpulse adds to current velocity.
-              // The calculation assumes "resultant" impulse.
-              // Let's trust the util to give the ADDITIVE impulse or TOTAL velocity?
-              // The util calculates "impulseMag". Impulse is change in momentum (Mass * DeltaV).
-              // Rapier applyImpulse adds to momentum.
-              
-              // However, standard physics also happened (contact).
-              // To get "Arcade" feel, we often want to override the natural bounce.
-              // Let's zero out the velocity component in the normal direction first?
-              // Or just apply a massive impulse that overrides it.
-              
-              // Better approach for consistency: Set Velocity directly if we want exact control.
-              // But applyImpulse is safer for physics stability.
-              // Let's try applying the calculated impulse.
-              
-              this.ballBody.applyImpulse(impulse, true)
-              
-              // Broadcast high-frequency collision event with EXACT impulse used
+              // Broadcast high-frequency collision event
               this.broadcast('ball-collision', {
                 sessionId: sessionId,
-                timestamp: now,
-                vx: vel.x + impulse.x / 3.0, // Approx new vel (Mass=3.0)
-                vy: vel.y + impulse.y / 3.0,
-                vz: vel.z + impulse.z / 3.0,
+                timestamp: Date.now(),
+                vx: vel.x,
+                vy: vel.y,
+                vz: vel.z,
                 x: pos.x,
                 y: pos.y,
                 z: pos.z,
-                impulse: impulse, // Send the exact impulse for client prediction matching
-                visualCue: visualCue
+                // Rocket League-style data for client prediction
+                impulseMagnitude: Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z),
+                contactHeight: (pos.y - playerPos.y) / 0.6 // Normalized height (approx)
               }, { afterNextPatch: true })
             }
           }
         } catch (e) {
-          console.error("Collision error:", e)
+          // Ignore potential errors if colliders are invalid
         }
       }
     }
@@ -801,7 +760,6 @@ export class SoccerRoom extends Room {
 
   applyPowerUp(player, type) {
     const duration = this.POWER_UP_TYPES[type].duration
-    player.powerUpExpiresAt = Date.now() + duration
     
     if (type === 'speed') {
       player.speedMult = 2
@@ -827,9 +785,9 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Radius * 10)
-        const giantRadius = COLLISION_CONFIG.PLAYER_RADIUS * 10
-        const giantCollider = RAPIER.ColliderDesc.cuboid(giantRadius, 2.0, giantRadius)
+        // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
+        // Normal is 0.6, so this is 10x bigger
+        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
@@ -848,7 +806,7 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(COLLISION_CONFIG.PLAYER_RADIUS, 0.2, COLLISION_CONFIG.PLAYER_RADIUS)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
             .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
