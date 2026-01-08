@@ -42,9 +42,9 @@ export const COLLISION_CONFIG = {
   WHEEL_MULTIPLIER: 0.55,        // Soft dribble touch
   
   // === CARRY / DRIBBLE ===
-  CARRY_HEIGHT_THRESHOLD: 0.8,   // Must be this high up on the ball (0-1 relative)
-  CARRY_STICKINESS: 0.95,        // How much ball velocity matches player (0-1)
-  CARRY_LIFT_REDUCTION: 0.2,     // Reduce vertical bounce when carrying
+  CARRY_HEIGHT_THRESHOLD: 0.75,  // Easier to initiate carry (was 0.8)
+  CARRY_STICKINESS: 0.99,        // Almost perfect velocity matching (was 0.95)
+  CARRY_LIFT_REDUCTION: 0.05,    // Minimal bounce when carrying (was 0.2)
   
   // === SUB-FRAME PREDICTION ===
   SUB_FRAME_STEPS_MIN: 3,
