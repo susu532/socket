@@ -2,6 +2,7 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
+import { calculateRocketLeagueImpulse } from '../physics/PhysicsUtils.js'
 
 const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz for high-precision physics
 const GOAL_COOLDOWN = 5000          // 5 seconds
@@ -645,37 +646,93 @@ export class SoccerRoom extends Room {
 
 
     // 2. Step physics world
-    this.world.step()
+    // Sub-step physics for high-speed ball to prevent tunneling
+    let subSteps = 1
+    if (this.ballBody) {
+      const vel = this.ballBody.linvel()
+      const speed = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z)
+      // Dynamic sub-stepping based on speed
+      if (speed > 40) subSteps = 4
+      else if (speed > 25) subSteps = 2
+    }
+
+    for (let i = 0; i < subSteps; i++) {
+      this.world.step()
+    }
 
     // Detect and broadcast ball-player collisions
     if (this.ballBody && this.ballCollider) {
       for (const [sessionId, playerCollider] of this.playerColliders) {
         // Check for contact between ball and player
-        // contactPair returns a ContactPair object if they are close/touching
-        // We check if there is an active contact
         try {
           const contact = this.world.contactPair(this.ballCollider, playerCollider)
           if (contact && contact.hasAnyActiveContact) {
             const player = this.state.players.get(sessionId)
-            if (player) {
+            const body = this.playerBodies.get(sessionId)
+            
+            // Check cooldown to prevent double-hits
+            const now = Date.now()
+            if (player && body && (!player.lastHitTime || now - player.lastHitTime > 100)) {
+              player.lastHitTime = now
+              
               const vel = this.ballBody.linvel()
               const pos = this.ballBody.translation()
+              const playerPos = body.translation()
+              const playerVel = body.linvel() // Kinematic bodies have velocity if moving
               
-              // Broadcast high-frequency collision event
+              // Prepare state objects for physics util
+              const ballState = {
+                x: pos.x, y: pos.y, z: pos.z,
+                vx: vel.x, vy: vel.y, vz: vel.z
+              }
+              
+              // Estimate player velocity from input if kinematic velocity is zero (common in some setups)
+              // But Rapier kinematic bodies should have linvel if moved via setNextKinematicTranslation
+              const pState = {
+                x: playerPos.x, y: playerPos.y, z: playerPos.z,
+                vx: player.vx || 0, vy: player.vy || 0, vz: player.vz || 0, // Use stored velocity from physics loop
+                giant: player.giant || false
+              }
+              
+              // Calculate Rocket League Impulse
+              const { impulse, visualCue } = calculateRocketLeagueImpulse(ballState, pState)
+              
+              // Apply Impulse to Ball (Override standard physics for this frame)
+              // We reset velocity to 0 relative to the impulse direction to ensure clean hit?
+              // Or just apply impulse. applyImpulse adds to current velocity.
+              // The calculation assumes "resultant" impulse.
+              // Let's trust the util to give the ADDITIVE impulse or TOTAL velocity?
+              // The util calculates "impulseMag". Impulse is change in momentum (Mass * DeltaV).
+              // Rapier applyImpulse adds to momentum.
+              
+              // However, standard physics also happened (contact).
+              // To get "Arcade" feel, we often want to override the natural bounce.
+              // Let's zero out the velocity component in the normal direction first?
+              // Or just apply a massive impulse that overrides it.
+              
+              // Better approach for consistency: Set Velocity directly if we want exact control.
+              // But applyImpulse is safer for physics stability.
+              // Let's try applying the calculated impulse.
+              
+              this.ballBody.applyImpulse(impulse, true)
+              
+              // Broadcast high-frequency collision event with EXACT impulse used
               this.broadcast('ball-collision', {
                 sessionId: sessionId,
-                timestamp: Date.now(),
-                vx: vel.x,
-                vy: vel.y,
-                vz: vel.z,
+                timestamp: now,
+                vx: vel.x + impulse.x / 3.0, // Approx new vel (Mass=3.0)
+                vy: vel.y + impulse.y / 3.0,
+                vz: vel.z + impulse.z / 3.0,
                 x: pos.x,
                 y: pos.y,
-                z: pos.z
+                z: pos.z,
+                impulse: impulse, // Send the exact impulse for client prediction matching
+                visualCue: visualCue
               }, { afterNextPatch: true })
             }
           }
         } catch (e) {
-          // Ignore potential errors if colliders are invalid
+          console.error("Collision error:", e)
         }
       }
     }
