@@ -27,20 +27,6 @@ const ROOF_DAMPING_FACTOR = 0.88
 const ROOF_PULL_STRENGTH = 2.8
 const ROOF_DEADZONE = 0.15
 const ROOF_VELOCITY_THRESHOLD = 15
-const ROOF_VELOCITY_MATCH = 0.15          // Ball velocity matching to player
-const ROOF_VERTICAL_DAMPING = 0.7         // Reduce vertical bounce on roof
-const ROOF_STICKY_RADIUS = 0.4            // Inner zone with stronger magnetism
-
-// Pre-Lift Assist Zone (helps ball transition to roof)
-const LIFT_ASSIST_HEIGHT = 0.8            // Y threshold for assist activation
-const LIFT_ASSIST_RADIUS = 1.5            // Horizontal detection radius
-const LIFT_ASSIST_FORCE = 4.5             // Upward assist strength
-const LIFT_ASSIST_VELOCITY_CAP = 8        // Max ball speed for assist
-
-// Enhanced Scoop Mechanics
-const SCOOP_DETECTION_ANGLE = Math.PI / 6 // 30° below horizontal
-const SCOOP_LIFT_BONUS = 2.2              // Extra vertical boost
-const SCOOP_FORWARD_BOOST = 0.4           // Forward momentum on scoop
 
 // Contact Precision System
 const CONTACT_ZONE_FRONT = Math.PI / 4
@@ -48,10 +34,6 @@ const CONTACT_ZONE_SIDE = (3 * Math.PI) / 4
 const FRONT_HIT_FORWARD_BIAS = 1.3
 const SIDE_HIT_PERPENDICULAR = 0.4
 const BACK_HIT_CHIP_MULTIPLIER = 1.5
-
-// Continuous Contact System
-const CONTINUOUS_CONTACT_RADIUS = BALL_RADIUS + PLAYER_RADIUS + 0.1
-const CONTACT_IMPULSE_SCALE = 0.5         // Scale for continuous contact impulses
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS - ROCKET LEAGUE MECHANICS
@@ -91,7 +73,7 @@ const applyGroundLiftBias = (impulse, ballY, playerVelY) => {
   return impulse
 }
 
-const applyRoofMagnetism = (ballPos, ballVel, playerPos, playerVel, delta) => {
+const applyRoofMagnetism = (ballPos, ballVel, playerPos, delta) => {
   const dx = ballPos.x - playerPos.x
   const dy = ballPos.y - (playerPos.y + ROOF_DETECT_HEIGHT)
   const dz = ballPos.z - playerPos.z
@@ -101,164 +83,28 @@ const applyRoofMagnetism = (ballPos, ballVel, playerPos, playerVel, delta) => {
                    dy < BALL_RADIUS * 2 && 
                    horizontalDist < ROOF_DETECT_RADIUS
   
-  if (!isOnRoof) return { damping: 1.0, pull: { x: 0, y: 0, z: 0 }, velocityMatch: { x: 0, y: 0, z: 0 } }
+  if (!isOnRoof) return { damping: 1.0, pull: { x: 0, y: 0, z: 0 } }
   
   const ballSpeed = Math.sqrt(ballVel.x * ballVel.x + ballVel.y * ballVel.y + ballVel.z * ballVel.z)
   if (ballSpeed > ROOF_VELOCITY_THRESHOLD) {
-    return { damping: 1.0, pull: { x: 0, y: 0, z: 0 }, velocityMatch: { x: 0, y: 0, z: 0 } }
+    return { damping: 1.0, pull: { x: 0, y: 0, z: 0 } }
   }
   
   const pull = { x: 0, y: 0, z: 0 }
-  const velocityMatch = { x: 0, y: 0, z: 0 }
-  
-  // Enhanced horizontal pull with sticky zone
   if (horizontalDist > ROOF_DEADZONE) {
     const invH = 1 / horizontalDist
     const pullX = (playerPos.x - ballPos.x) * invH
     const pullZ = (playerPos.z - ballPos.z) * invH
     
-    // Stronger pull in sticky zone
-    const isInStickyZone = horizontalDist < ROOF_STICKY_RADIUS
-    const stickyMultiplier = isInStickyZone ? 2.5 : 1.0
-    const strength = Math.min(1, horizontalDist / ROOF_DETECT_RADIUS) * stickyMultiplier
-    
+    const strength = Math.min(1, horizontalDist / ROOF_DETECT_RADIUS)
     pull.x = pullX * ROOF_PULL_STRENGTH * strength * delta
     pull.z = pullZ * ROOF_PULL_STRENGTH * strength * delta
   }
   
-  // Velocity matching - ball follows player movement
-  if (playerVel) {
-    velocityMatch.x = (playerVel.x - ballVel.x) * ROOF_VELOCITY_MATCH
-    velocityMatch.z = (playerVel.z - ballVel.z) * ROOF_VELOCITY_MATCH
-  }
-  
-  // Vertical damping for bounce reduction
-  const verticalDamping = ballVel.y > 0 ? ROOF_VERTICAL_DAMPING : ROOF_DAMPING_FACTOR
-  
   return {
     damping: ROOF_DAMPING_FACTOR,
-    verticalDamping: verticalDamping,
-    pull: pull,
-    velocityMatch: velocityMatch,
-    isInStickyZone: horizontalDist < ROOF_STICKY_RADIUS
+    pull: pull
   }
-}
-
-// Pre-Lift Assist: helps ball transition from ground to roof
-const applyLiftAssist = (ballPos, ballVel, playerPos, playerVel, delta) => {
-  const ballSpeed = Math.sqrt(ballVel.x * ballVel.x + ballVel.y * ballVel.y + ballVel.z * ballVel.z)
-  
-  // Only assist slow-moving balls at low height
-  if (ballPos.y > LIFT_ASSIST_HEIGHT || ballSpeed > LIFT_ASSIST_VELOCITY_CAP) {
-    return { liftForce: 0, velocityMatch: { x: 0, z: 0 } }
-  }
-  
-  const dx = ballPos.x - playerPos.x
-  const dz = ballPos.z - playerPos.z
-  const horizontalDist = Math.sqrt(dx * dx + dz * dz)
-  
-  if (horizontalDist > LIFT_ASSIST_RADIUS) {
-    return { liftForce: 0, velocityMatch: { x: 0, z: 0 } }
-  }
-  
-  // Lift force inversely proportional to distance
-  const distFactor = 1 - horizontalDist / LIFT_ASSIST_RADIUS
-  const liftForce = LIFT_ASSIST_FORCE * distFactor * delta
-  
-  // Match ball horizontal velocity to player
-  const velocityMatch = {
-    x: (playerVel.x - ballVel.x) * 0.1 * distFactor,
-    z: (playerVel.z - ballVel.z) * 0.1 * distFactor
-  }
-  
-  return { liftForce, velocityMatch }
-}
-
-// Scoop Mechanics: enhanced lift when player moves into ball from below
-const applyScoopMechanics = (ballPos, ballVel, playerPos, playerVel, playerRotY) => {
-  // Check if player is moving forward and upward
-  const forwardX = Math.sin(playerRotY)
-  const forwardZ = Math.cos(playerRotY)
-  const playerForwardSpeed = playerVel.x * forwardX + playerVel.z * forwardZ
-  
-  if (playerForwardSpeed < 2.0 || playerVel.y <= 0) {
-    return { scoopImpulse: { x: 0, y: 0, z: 0 } }
-  }
-  
-  const dx = ballPos.x - playerPos.x
-  const dy = ballPos.y - playerPos.y
-  const dz = ballPos.z - playerPos.z
-  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
-  
-  // Ball must be close and roughly in front of player
-  if (dist > CONTINUOUS_CONTACT_RADIUS * 1.5) {
-    return { scoopImpulse: { x: 0, y: 0, z: 0 } }
-  }
-  
-  // Check angle: ball should be low relative to player forward
-  const horizontalDist = Math.sqrt(dx * dx + dz * dz)
-  const angleToHorizontal = Math.atan2(dy, horizontalDist)
-  
-  if (angleToHorizontal > SCOOP_DETECTION_ANGLE) {
-    return { scoopImpulse: { x: 0, y: 0, z: 0 } }
-  }
-  
-  // Apply scoop impulse
-  const scoopStrength = Math.min(1, playerForwardSpeed / 8) * SCOOP_LIFT_BONUS
-  const scoopImpulse = {
-    x: forwardX * playerForwardSpeed * SCOOP_FORWARD_BOOST,
-    y: scoopStrength * 3,
-    z: forwardZ * playerForwardSpeed * SCOOP_FORWARD_BOOST
-  }
-  
-  return { scoopImpulse }
-}
-
-// Continuous contact detection for smooth ball control
-const applyContinuousContact = (ballPos, ballVel, playerPos, playerVel, delta) => {
-  const dx = ballPos.x - playerPos.x
-  const dy = ballPos.y - playerPos.y
-  const dz = ballPos.z - playerPos.z
-  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
-  
-  if (dist > CONTINUOUS_CONTACT_RADIUS || dist < 0.1) {
-    return null
-  }
-  
-  // Calculate contact normal
-  const invD = 1 / dist
-  const nx = dx * invD
-  const ny = Math.max(0.05, dy * invD) // Slight upward bias
-  const nz = dz * invD
-  
-  // Relative velocity
-  const relVx = ballVel.x - (playerVel.x || 0)
-  const relVy = ballVel.y - (playerVel.y || 0)
-  const relVz = ballVel.z - (playerVel.z || 0)
-  const approachSpeed = relVx * nx + relVy * ny + relVz * nz
-  
-  // Only apply if approaching
-  if (approachSpeed > 0) {
-    return null
-  }
-  
-  // Soft push impulse
-  const impulseMag = -approachSpeed * CONTACT_IMPULSE_SCALE
-  const impulse = {
-    x: impulseMag * nx + (playerVel.x || 0) * 0.3,
-    y: impulseMag * ny + 0.5, // Slight lift
-    z: impulseMag * nz + (playerVel.z || 0) * 0.3
-  }
-  
-  // Separation push
-  const overlap = CONTINUOUS_CONTACT_RADIUS - dist
-  const separation = {
-    x: nx * overlap * 0.5,
-    y: ny * overlap * 0.3,
-    z: nz * overlap * 0.5
-  }
-  
-  return { impulse, separation, contactNormal: { x: nx, y: ny, z: nz } }
 }
 
 const applyContactZoneModifiers = (impulse, zone, playerRotY, nx, nz) => {
@@ -349,9 +195,7 @@ export class SoccerRoom extends Room {
     }
 
     // Physics world
-    // Physics world
-    // S-TIER PHYSICS: Sync with client gravity (20.0) for consistent prediction
-    this.world = new RAPIER.World({ x: 0, y: -20.0, z: 0 })
+    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
 
     // Create arena colliders
     this.createArena()
@@ -417,11 +261,9 @@ export class SoccerRoom extends Room {
     const wallThickness = 2
 
     // Ground
-    // S-TIER PHYSICS: High friction (1.0) for grass feel, moderate bounce (0.6)
     const groundDesc = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.25, pitchDepth / 2)
       .setTranslation(0, -0.25, 0)
-      .setFriction(1.0)
-      .setRestitution(0.6)
+      .setFriction(2.0)
     this.world.createCollider(groundDesc)
 
     // Back walls (Z axis)
@@ -445,8 +287,6 @@ export class SoccerRoom extends Room {
     sideWallPositions.forEach(([x, z]) => {
       const desc = RAPIER.ColliderDesc.cuboid(wallThickness / 2, wallHeight / 2, sideWallHalfDepth)
         .setTranslation(x, wallHeight / 2, z)
-        .setFriction(0.0) // Smooth walls
-        .setRestitution(0.6) // Bouncy walls
       this.world.createCollider(desc)
     })
 
@@ -457,8 +297,7 @@ export class SoccerRoom extends Room {
       // halfX=1 (2m thick), halfY=5 (10m high), halfZ=5 (10m wide to overlap sides)
       const desc = RAPIER.ColliderDesc.cuboid(1, 5, 5)
         .setTranslation(x, 5, z)
-        .setFriction(0.0)
-        .setRestitution(0.6)
+        .setRestitution(1.2)
       this.world.createCollider(desc)
     })
 
@@ -469,8 +308,7 @@ export class SoccerRoom extends Room {
     postPositions.forEach(([x, z]) => {
       const desc = RAPIER.ColliderDesc.cylinder(2, 0.06)
         .setTranslation(x, 2, z)
-        .setFriction(0.0) // Slippery metal
-        .setRestitution(1.0) // High bounce (PING!)
+        .setRestitution(0.8)
       this.world.createCollider(desc)
     })
 
@@ -480,8 +318,7 @@ export class SoccerRoom extends Room {
       const desc = RAPIER.ColliderDesc.cylinder(3, 0.06)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
-        .setFriction(0.0)
-        .setRestitution(1.0)
+        .setRestitution(0.8)
       this.world.createCollider(desc)
     })
 
@@ -519,18 +356,15 @@ export class SoccerRoom extends Room {
     const ballBodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, 2, 0)
       .setCcdEnabled(true)
-      .setLinearDamping(0.9)  // S-TIER: Increased from 1.5 to match Cannon 0.9 (relative to scale)
-      .setAngularDamping(0.99) // S-TIER: High angular damping to kill spin quickly
+      .setLinearDamping(1.5)
+      .setAngularDamping(1.5)
 
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
     const ballCollider = RAPIER.ColliderDesc.ball(0.8)
       .setMass(3.0)
-      .setRestitution(0.6) // Moderate bounce
-      .setFriction(0.6)    // Moderate friction
-      // Note: Rapier combines coefficients. 
-      // Ball(0.6) + Ground(1.0) -> ~0.8 Friction
-      // Ball(0.6) + Ground(0.6) -> ~0.6 Restitution
+      .setRestitution(0.75)
+      .setFriction(0.5)
 
     this.world.createCollider(ballCollider, this.ballBody)
   }
@@ -544,9 +378,9 @@ export class SoccerRoom extends Room {
 
     const collider = RAPIER.ColliderDesc.cuboid(0.5, 0.2, 0.5)
       .setTranslation(0, 0.2, 0)
-      .setFriction(1.4) // High friction for grip
-      .setRestitution(0.0) // No bounce
-    
+      .setFriction(2.0)
+      .setRestitution(0.0)
+
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
 
@@ -938,69 +772,28 @@ export class SoccerRoom extends Room {
       player.rotY = rotY
 
       // ═══════════════════════════════════════════════════════════════════
-      // ROCKET LEAGUE S-TIER BALL PHYSICS INTEGRATION
+      // ROCKET LEAGUE MODULE 5: ROOF DRIBBLE MAGNETISM
       // ═══════════════════════════════════════════════════════════════════
       if (this.ballBody) {
         const ballPos = this.ballBody.translation()
         const ballVel = this.ballBody.linvel()
-        const playerPos = { x: newX, y: newY, z: newZ }
-        const playerVel = { x: player.vx || 0, y: player.vy || 0, z: player.vz || 0 }
-        const playerRotY = rotY
-        
-        // MODULE 1: LIFT ASSIST (ground-to-roof transition)
-        const liftEffect = applyLiftAssist(ballPos, ballVel, playerPos, playerVel, deltaTime)
-        if (liftEffect.liftForce > 0) {
-          this.ballBody.applyImpulse({
-            x: liftEffect.velocityMatch.x,
-            y: liftEffect.liftForce,
-            z: liftEffect.velocityMatch.z
-          }, true)
-        }
-        
-        // MODULE 2: SCOOP MECHANICS (jump + forward = ball lift)
-        const scoopEffect = applyScoopMechanics(ballPos, ballVel, playerPos, playerVel, playerRotY)
-        if (scoopEffect.scoopImpulse.y > 0) {
-          this.ballBody.applyImpulse(scoopEffect.scoopImpulse, true)
-        }
-        
-        // MODULE 3: CONTINUOUS CONTACT (smooth ball control)
-        const contactEffect = applyContinuousContact(ballPos, ballVel, playerPos, playerVel, deltaTime)
-        if (contactEffect) {
-          this.ballBody.applyImpulse(contactEffect.impulse, true)
-          // Apply separation to prevent overlap
-          const currentBallPos = this.ballBody.translation()
-          this.ballBody.setTranslation({
-            x: currentBallPos.x + contactEffect.separation.x,
-            y: currentBallPos.y + contactEffect.separation.y,
-            z: currentBallPos.z + contactEffect.separation.z
-          }, true)
-        }
-        
-        // MODULE 4: ENHANCED ROOF DRIBBLE MAGNETISM
         const roofEffect = applyRoofMagnetism(
           ballPos,
           ballVel,
-          playerPos,
-          playerVel,
+          { x: newX, y: newY, z: newZ },
           deltaTime
         )
 
         if (roofEffect.damping < 1.0) {
-          // Apply velocity damping (with vertical-specific damping)
-          const vertDamp = roofEffect.verticalDamping || roofEffect.damping
+          // Apply velocity damping to ball
           this.ballBody.setLinvel({
-            x: ballVel.x * roofEffect.damping + roofEffect.velocityMatch.x,
-            y: ballVel.y * vertDamp,
-            z: ballVel.z * roofEffect.damping + roofEffect.velocityMatch.z
+            x: ballVel.x * roofEffect.damping,
+            y: ballVel.y * roofEffect.damping,
+            z: ballVel.z * roofEffect.damping
           }, true)
 
           // Apply magnetism pull (as impulse)
           this.ballBody.applyImpulse(roofEffect.pull, true)
-          
-          // Extra stabilization in sticky zone
-          if (roofEffect.isInStickyZone) {
-            this.ballBody.applyImpulse({ x: 0, y: -0.5, z: 0 }, true) // Slight downward to prevent float
-          }
         }
       }
     })
