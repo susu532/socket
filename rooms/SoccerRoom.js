@@ -188,7 +188,7 @@ export class SoccerRoom extends Room {
     // Crossbars
     const crossbarPositions = [[-10.8, 0], [10.8, 0]]
     crossbarPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(3, 0.06)
+      const desc = RAPIER.ColliderDesc.cylinder(3, 0.04)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
         .setRestitution(0.8)
@@ -249,10 +249,13 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
-      .setTranslation(0, 0.2, 0)
-      .setFriction(2.0)
-      .setRestitution(0.0)
+    // CAR SHAPE COLLIDER
+    // Width: 1.4m (0.7), Height: 0.6m (0.3), Length: 2.8m (1.4)
+    // This provides a large flat surface for the ball to stabilize on
+    const collider = RAPIER.ColliderDesc.cuboid(0.7, 0.3, 1.4)
+      .setTranslation(0, 0.3, 0) // Center at y=0.3 (bottom at 0)
+      .setFriction(2.0) // High friction for grip
+      .setRestitution(0.0) // No bounce on car body
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
