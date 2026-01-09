@@ -323,48 +323,21 @@ export class SoccerRoom extends Room {
     })
   }
 
-  async onLeave(client, consented) {
-    console.log(`Player ${client.sessionId} left (consented: ${consented})`)
+  onLeave(client, consented) {
+    console.log(`Player ${client.sessionId} left`)
 
-    // If consented (user clicked exit), remove immediately
-    if (consented) {
-      this.removePlayer(client.sessionId)
-      return
-    }
-
-    // Otherwise, allow reconnection
-    try {
-      if (consented) {
-          throw new Error("consented leave")
-      }
-
-      // Allow 20 seconds to reconnect
-      await this.allowReconnection(client, 20)
-      console.log(`Player ${client.sessionId} reconnected!`)
-      
-      // Notify client they are back (optional, but good for sync)
-      client.send('reconnected', {})
-
-    } catch (e) {
-      // Timeout or error -> remove player
-      console.log(`Player ${client.sessionId} failed to reconnect (timeout)`)
-      this.removePlayer(client.sessionId)
-    }
-  }
-
-  removePlayer(sessionId) {
     // Remove physics body
-    const body = this.playerBodies.get(sessionId)
+    const body = this.playerBodies.get(client.sessionId)
     if (body) {
       this.world.removeRigidBody(body)
-      this.playerBodies.delete(sessionId)
+      this.playerBodies.delete(client.sessionId)
     }
 
-    this.state.players.delete(sessionId)
+    this.state.players.delete(client.sessionId)
 
     this.updateRoomMetadataCounts()
 
-    this.broadcast('player-left', { sessionId })
+    this.broadcast('player-left', { sessionId: client.sessionId })
 
     if (this.clients.length === 0 && !this.emptyDisposeTimeout) {
       this.emptyDisposeTimeout = this.clock.setTimeout(() => {
