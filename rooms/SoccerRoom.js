@@ -249,10 +249,13 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
-      .setTranslation(0, 0.2, 0)
-      .setFriction(2.0)
-      .setRestitution(0.0)
+    // Box Collider for Roof Dribbling (Car-like shape)
+    // Half-extents: 0.7 width, 0.5 height, 1.0 length
+    // Total size: 1.4m wide, 1.0m high, 2.0m long
+    const collider = RAPIER.ColliderDesc.cuboid(0.7, 0.5, 1.0)
+      .setTranslation(0, 0.5, 0) // Centered on ground (0.5 up)
+      .setFriction(2.5) // High friction for grip
+      .setRestitution(0.1) // Low bounce on body
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
