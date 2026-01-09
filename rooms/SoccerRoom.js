@@ -249,43 +249,12 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    // Bowl-shaped compound collider
-    // Center platform (flat top)
-    const center = RAPIER.ColliderDesc.cuboid(0.4, 0.1, 0.4)
-      .setTranslation(0, 0.5, 0)
-      .setFriction(1.5)
+    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+      .setTranslation(0, 0.2, 0)
+      .setFriction(2.0)
       .setRestitution(0.0)
 
-    // Slopes to form the bowl
-    const frontSlope = RAPIER.ColliderDesc.cuboid(0.4, 0.15, 0.2)
-      .setTranslation(0, 0.4, 0.5)
-      .setRotation({ x: Math.sin(-15 * Math.PI / 180 / 2), y: 0, z: 0, w: Math.cos(-15 * Math.PI / 180 / 2) }) // Tilt backward
-      .setFriction(0.3)
-      .setRestitution(0.4)
-
-    const backSlope = RAPIER.ColliderDesc.cuboid(0.4, 0.15, 0.2)
-      .setTranslation(0, 0.4, -0.5)
-      .setRotation({ x: Math.sin(15 * Math.PI / 180 / 2), y: 0, z: 0, w: Math.cos(15 * Math.PI / 180 / 2) }) // Tilt forward
-      .setFriction(0.3)
-      .setRestitution(0.4)
-
-    const leftSlope = RAPIER.ColliderDesc.cuboid(0.2, 0.15, 0.4)
-      .setTranslation(-0.5, 0.4, 0)
-      .setRotation({ x: 0, y: 0, z: Math.sin(15 * Math.PI / 180 / 2), w: Math.cos(15 * Math.PI / 180 / 2) }) // Tilt right
-      .setFriction(0.3)
-      .setRestitution(0.4)
-
-    const rightSlope = RAPIER.ColliderDesc.cuboid(0.2, 0.15, 0.4)
-      .setTranslation(0.5, 0.4, 0)
-      .setRotation({ x: 0, y: 0, z: Math.sin(-15 * Math.PI / 180 / 2), w: Math.cos(-15 * Math.PI / 180 / 2) }) // Tilt left
-      .setFriction(0.3)
-      .setRestitution(0.4)
-
-    this.world.createCollider(center, body)
-    this.world.createCollider(frontSlope, body)
-    this.world.createCollider(backSlope, body)
-    this.world.createCollider(leftSlope, body)
-    this.world.createCollider(rightSlope, body)
+    this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
 
     return { x: spawnX, y: 0.1, z: 0 }
@@ -421,7 +390,7 @@ export class SoccerRoom extends Room {
     const dz = ballPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if (dist < 2.2) {
+    if (dist < 1.7) {
       const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
 
@@ -429,7 +398,7 @@ export class SoccerRoom extends Room {
       // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + 2.5 * kickMult, // Add base vertical boost scaled by power
+        y: impulseY + 0.8 * kickMult, // Add base vertical boost scaled by power
         z: impulseZ 
       }, true)
 
@@ -438,7 +407,7 @@ export class SoccerRoom extends Room {
         playerId: client.sessionId,
         impulse: { 
           x: impulseX, 
-          y: impulseY + 2.5 * kickMult, // Visual boost scaled
+          y: impulseY + 0.8 * kickMult, // Visual boost scaled
           z: impulseZ 
         }
       })
@@ -704,58 +673,6 @@ export class SoccerRoom extends Room {
         this.ballBody.setAngvel({ x: angvel.x * scale, y: angvel.y * scale, z: angvel.z * scale }, true)
       }
     }
-
-    // Stabilize ball on player roof
-    this.stabilizeBallOnPlayer(deltaTime)
-  }
-
-  stabilizeBallOnPlayer(deltaTime) {
-    this.state.players.forEach((player, sessionId) => {
-      const body = this.playerBodies.get(sessionId)
-      if (!body || !this.ballBody) return
-
-      const playerPos = body.translation()
-      const ballPos = this.ballBody.translation()
-
-      // Calculate horizontal distance
-      const dx = ballPos.x - playerPos.x
-      const dz = ballPos.z - playerPos.z
-      const hDist = Math.sqrt(dx * dx + dz * dz)
-      
-      // Calculate vertical distance
-      const dy = ballPos.y - playerPos.y
-
-      // Check if ball is "on roof"
-      // Horizontal < 1.2 (slightly larger than bowl radius)
-      // Vertical between 0.6 (just above head) and 1.5 (max control height)
-      if (hDist < 1.2 && dy > 0.6 && dy < 1.5) {
-        const ballVel = this.ballBody.linvel()
-        const playerVel = body.linvel() // Kinematic bodies have velocity
-
-        const relVx = ballVel.x - playerVel.x
-        const relVz = ballVel.z - playerVel.z
-
-        // Forces
-        // 1. Damping: oppose relative velocity
-        const dampX = relVx * -0.4
-        const dampZ = relVz * -0.4
-
-        // 2. Velocity Transfer: add player velocity
-        const transX = playerVel.x * 0.6
-        const transZ = playerVel.z * 0.6
-
-        // 3. Centering: spring force
-        const centerX = -dx * 8.0
-        const centerZ = -dz * 8.0
-
-        // Apply forces as impulse (Force * deltaTime)
-        this.ballBody.applyImpulse({
-          x: (dampX + transX + centerX) * deltaTime,
-          y: 0,
-          z: (dampZ + transZ + centerZ) * deltaTime
-        }, true)
-      }
-    })
   }
 
   checkGoal() {
@@ -816,45 +733,12 @@ export class SoccerRoom extends Room {
 
         // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
         // Normal is 0.6, so this is 10x bigger
-        // Create GIANT collider (Radius 6.0 requested -> 6.0 half-extent)
-        // Normal is 0.6, so this is 10x bigger
-        
-        // Center platform
-        const center = RAPIER.ColliderDesc.cuboid(4.0, 1.0, 4.0)
-          .setTranslation(0, 5.0, 0)
-          .setFriction(1.5)
+        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
+          .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
+          .setFriction(2.0)
           .setRestitution(0.0)
-
-        // Slopes
-        const frontSlope = RAPIER.ColliderDesc.cuboid(4.0, 1.5, 2.0)
-          .setTranslation(0, 4.0, 5.0)
-          .setRotation({ x: Math.sin(-15 * Math.PI / 180 / 2), y: 0, z: 0, w: Math.cos(-15 * Math.PI / 180 / 2) })
-          .setFriction(0.3)
-          .setRestitution(0.4)
-
-        const backSlope = RAPIER.ColliderDesc.cuboid(4.0, 1.5, 2.0)
-          .setTranslation(0, 4.0, -5.0)
-          .setRotation({ x: Math.sin(15 * Math.PI / 180 / 2), y: 0, z: 0, w: Math.cos(15 * Math.PI / 180 / 2) })
-          .setFriction(0.3)
-          .setRestitution(0.4)
-
-        const leftSlope = RAPIER.ColliderDesc.cuboid(2.0, 1.5, 4.0)
-          .setTranslation(-5.0, 4.0, 0)
-          .setRotation({ x: 0, y: 0, z: Math.sin(15 * Math.PI / 180 / 2), w: Math.cos(15 * Math.PI / 180 / 2) })
-          .setFriction(0.3)
-          .setRestitution(0.4)
-
-        const rightSlope = RAPIER.ColliderDesc.cuboid(2.0, 1.5, 4.0)
-          .setTranslation(5.0, 4.0, 0)
-          .setRotation({ x: 0, y: 0, z: Math.sin(-15 * Math.PI / 180 / 2), w: Math.cos(-15 * Math.PI / 180 / 2) })
-          .setFriction(0.3)
-          .setRestitution(0.4)
         
-        this.world.createCollider(center, body)
-        this.world.createCollider(frontSlope, body)
-        this.world.createCollider(backSlope, body)
-        this.world.createCollider(leftSlope, body)
-        this.world.createCollider(rightSlope, body)
+        this.world.createCollider(giantCollider, body)
       }
 
       this.clock.setTimeout(() => {
@@ -868,41 +752,12 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          // Restore normal collider (Bowl shape)
-          const center = RAPIER.ColliderDesc.cuboid(0.4, 0.1, 0.4)
-            .setTranslation(0, 0.5, 0)
-            .setFriction(1.5)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+            .setTranslation(0, 0.2, 0)
+            .setFriction(2.0)
             .setRestitution(0.0)
-
-          const frontSlope = RAPIER.ColliderDesc.cuboid(0.4, 0.15, 0.2)
-            .setTranslation(0, 0.4, 0.5)
-            .setRotation({ x: Math.sin(-15 * Math.PI / 180 / 2), y: 0, z: 0, w: Math.cos(-15 * Math.PI / 180 / 2) })
-            .setFriction(0.3)
-            .setRestitution(0.4)
-
-          const backSlope = RAPIER.ColliderDesc.cuboid(0.4, 0.15, 0.2)
-            .setTranslation(0, 0.4, -0.5)
-            .setRotation({ x: Math.sin(15 * Math.PI / 180 / 2), y: 0, z: 0, w: Math.cos(15 * Math.PI / 180 / 2) })
-            .setFriction(0.3)
-            .setRestitution(0.4)
-
-          const leftSlope = RAPIER.ColliderDesc.cuboid(0.2, 0.15, 0.4)
-            .setTranslation(-0.5, 0.4, 0)
-            .setRotation({ x: 0, y: 0, z: Math.sin(15 * Math.PI / 180 / 2), w: Math.cos(15 * Math.PI / 180 / 2) })
-            .setFriction(0.3)
-            .setRestitution(0.4)
-
-          const rightSlope = RAPIER.ColliderDesc.cuboid(0.2, 0.15, 0.4)
-            .setTranslation(0.5, 0.4, 0)
-            .setRotation({ x: 0, y: 0, z: Math.sin(-15 * Math.PI / 180 / 2), w: Math.cos(-15 * Math.PI / 180 / 2) })
-            .setFriction(0.3)
-            .setRestitution(0.4)
           
-          this.world.createCollider(center, body)
-          this.world.createCollider(frontSlope, body)
-          this.world.createCollider(backSlope, body)
-          this.world.createCollider(leftSlope, body)
-          this.world.createCollider(rightSlope, body)
+          this.world.createCollider(normalCollider, body)
         }
       }, duration)
     }
