@@ -398,7 +398,7 @@ export class SoccerRoom extends Room {
       // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + 0.8 * kickMult, // Add base vertical boost scaled by power
+        y: impulseY + 3.0 * kickMult, // Add base vertical boost scaled by power
         z: impulseZ 
       }, true)
 
@@ -629,12 +629,57 @@ export class SoccerRoom extends Room {
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
 
       // Update state for sync (rounded to 3 decimal places)
-          // Update state for sync
+          // Update state for sync (rounded to 3 decimal places)
+      // Update state for sync
       player.x = newX
       player.y = newY
       player.z = newZ
       player.rotY = rotY
 
+      // --- ROOF STABILIZATION ---
+      // Check if ball is resting on player
+      if (this.ballBody) {
+        const ballPos = this.ballBody.translation()
+        const ballVel = this.ballBody.linvel()
+        
+        // Calculate relative position
+        const dx = ballPos.x - newX
+        const dy = ballPos.y - (newY + 0.2) // newY is body center (0.1), collider center is +0.2? No, see below.
+        // createPlayerBody: body at 0.1. collider at 0.2 relative. So collider center is 0.3.
+        // Top of collider is 0.3 + 0.2 = 0.5.
+        // newY is the BODY Y.
+        // So top of player is newY + 0.2 (offset) + 0.2 (half-height) = newY + 0.4.
+        // Ball radius 0.8.
+        // Ideal Y = newY + 0.4 + 0.8 = newY + 1.2.
+        
+        const dz = ballPos.z - newZ
+        
+        // Check if "on top"
+        // Y diff should be around 1.2 (allow 1.0 to 1.5)
+        // X/Z diff should be within player bounds (width 1.2 -> half 0.6)
+        const isAbove = (ballPos.y - newY) > 1.0 && (ballPos.y - newY) < 1.6
+        const isWithinXZ = Math.abs(dx) < 0.7 && Math.abs(dz) < 0.7
+        const isSlowVertical = Math.abs(ballVel.y) < 2.0 // Not bouncing hard
+
+        if (isAbove && isWithinXZ && isSlowVertical) {
+          // Stabilize!
+          // 1. Match velocity (Damping)
+          const blendFactor = 0.2
+          const targetVx = player.vx
+          const targetVz = player.vz
+          
+          let newBallVx = ballVel.x + (targetVx - ballVel.x) * blendFactor
+          let newBallVz = ballVel.z + (targetVz - ballVel.z) * blendFactor
+          
+          // 2. Centering Force (Spring)
+          // Pull towards center (dx=0, dz=0)
+          const springStrength = 2.0
+          newBallVx -= dx * springStrength * deltaTime
+          newBallVz -= dz * springStrength * deltaTime
+          
+          this.ballBody.setLinvel({ x: newBallVx, y: ballVel.y, z: newBallVz }, true)
+        }
+      }
       
     })
 
@@ -652,7 +697,7 @@ export class SoccerRoom extends Room {
       const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-            this.state.ball.x = pos.x
+      this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
