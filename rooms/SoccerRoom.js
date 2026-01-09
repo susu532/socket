@@ -629,16 +629,115 @@ export class SoccerRoom extends Room {
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
 
       // Update state for sync (rounded to 3 decimal places)
-          // Update state for sync
       player.x = newX
       player.y = newY
       player.z = newZ
       player.rotY = rotY
-
       
+      // Store previous rotation for dribble break check
+      player.prevRotY = player.rotY
     })
 
+    // Dribble Logic
+    if (this.ballBody) {
+      const ballPos = this.ballBody.translation()
+      const ballVel = this.ballBody.linvel()
+      let isDribbling = false
+      let dribblingPlayerId = null
 
+      // Dribble Constants
+      const DRIBBLE_RADIUS = 1.2
+      const DRIBBLE_HEIGHT = 1.5
+      const PLAYER_TOP_Y = 0.5
+      
+      // Check each player for dribble
+      for (const [sessionId, player] of this.state.players) {
+        const body = this.playerBodies.get(sessionId)
+        if (!body) continue
+
+        const playerPos = body.translation()
+        
+        // Giant scaling
+        const radiusThreshold = player.giant ? DRIBBLE_RADIUS * 10 : DRIBBLE_RADIUS
+        
+        // Geometry check
+        const dx = ballPos.x - playerPos.x
+        const dz = ballPos.z - playerPos.z
+        const hDist = Math.sqrt(dx*dx + dz*dz)
+        const vDist = ballPos.y - (playerPos.y + PLAYER_TOP_Y)
+        
+        const isAbove = vDist > 0 && vDist < DRIBBLE_HEIGHT
+        const inRange = hDist < radiusThreshold
+
+        if (isAbove && inRange) {
+          // Check break conditions
+          const playerSpeed = Math.sqrt(player.vx*player.vx + player.vz*player.vz)
+          const accel = Math.sqrt((player.vx - (player.prevVx||0))**2 + (player.vz - (player.prevVz||0))**2) / deltaTime
+          const rotChange = Math.abs(player.rotY - (player.prevRotY||0))
+          
+          // Relative velocity check
+          const relVx = ballVel.x - player.vx
+          const relVz = ballVel.z - player.vz
+          const relSpeed = Math.sqrt(relVx*relVx + relVz*relVz)
+
+          const BREAK_ACCEL = 12
+          const BREAK_ROT = 0.3
+          const BREAK_REL_SPEED = 8
+          const JUMPING = player.vy > 2
+
+          if (accel < BREAK_ACCEL && rotChange < BREAK_ROT && relSpeed < BREAK_REL_SPEED && !JUMPING) {
+            isDribbling = true
+            dribblingPlayerId = sessionId
+            
+            // Apply Stabilization
+            const impulseScale = player.giant ? 1.5 : 1.0
+            
+            // 1. Centering Impulse (pull to XZ center of player)
+            // Normalize direction to center
+            let cx = -dx
+            let cz = -dz
+            const cLen = Math.sqrt(cx*cx + cz*cz)
+            if (cLen > 0.001) {
+              cx /= cLen
+              cz /= cLen
+            }
+            
+            const CENTERING_FORCE = 0.15 * impulseScale
+            this.ballBody.applyImpulse({ x: cx * CENTERING_FORCE, y: 0, z: cz * CENTERING_FORCE }, true)
+
+            // 2. Upward Impulse (Anti-gravity)
+            const UPWARD_FORCE = 0.06 * impulseScale
+            this.ballBody.applyImpulse({ x: 0, y: UPWARD_FORCE, z: 0 }, true)
+
+            // 3. Velocity Matching
+            const MATCH_RATE = 0.25
+            const newVx = ballVel.x + (player.vx - ballVel.x) * MATCH_RATE
+            const newVz = ballVel.z + (player.vz - ballVel.z) * MATCH_RATE
+            this.ballBody.setLinvel({ x: newVx, y: ballVel.y, z: newVz }, true)
+
+            // 4. Dynamic Properties
+            if (this.ballBody.numColliders() > 0) {
+               const collider = this.ballBody.collider(0)
+               collider.setRestitution(0.2)
+               collider.setFriction(1.2)
+            }
+            
+            break // Only one player can dribble at a time
+          }
+        }
+        
+        // Store prev velocity for accel calc next frame
+        player.prevVx = player.vx
+        player.prevVz = player.vz
+      }
+
+      // Reset properties if not dribbling
+      if (!isDribbling && this.ballBody.numColliders() > 0) {
+         const collider = this.ballBody.collider(0)
+         collider.setRestitution(0.75)
+         collider.setFriction(0.5)
+      }
+    }
 
     // 2. Step physics world
     this.world.step()
@@ -652,7 +751,7 @@ export class SoccerRoom extends Room {
       const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-            this.state.ball.x = pos.x
+      this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
@@ -662,7 +761,6 @@ export class SoccerRoom extends Room {
       this.state.ball.ry = rot.y
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
-
 
       // Limit angular velocity
       const angvel = this.ballBody.angvel()
