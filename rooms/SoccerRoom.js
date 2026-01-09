@@ -249,13 +249,10 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    // CAR SHAPE COLLIDER
-    // Width: 1.4m (0.7), Height: 0.6m (0.3), Length: 2.8m (1.4)
-    // This provides a large flat surface for the ball to stabilize on
-    const collider = RAPIER.ColliderDesc.cuboid(0.7, 0.3, 1.4)
-      .setTranslation(0, 0.3, 0) // Center at y=0.3 (bottom at 0)
-      .setFriction(2.0) // High friction for grip
-      .setRestitution(0.0) // No bounce on car body
+    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+      .setTranslation(0, 0.2, 0)
+      .setFriction(2.0)
+      .setRestitution(0.0)
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
@@ -326,21 +323,48 @@ export class SoccerRoom extends Room {
     })
   }
 
-  onLeave(client, consented) {
-    console.log(`Player ${client.sessionId} left`)
+  async onLeave(client, consented) {
+    console.log(`Player ${client.sessionId} left (consented: ${consented})`)
 
-    // Remove physics body
-    const body = this.playerBodies.get(client.sessionId)
-    if (body) {
-      this.world.removeRigidBody(body)
-      this.playerBodies.delete(client.sessionId)
+    // If consented (user clicked exit), remove immediately
+    if (consented) {
+      this.removePlayer(client.sessionId)
+      return
     }
 
-    this.state.players.delete(client.sessionId)
+    // Otherwise, allow reconnection
+    try {
+      if (consented) {
+          throw new Error("consented leave")
+      }
+
+      // Allow 20 seconds to reconnect
+      await this.allowReconnection(client, 20)
+      console.log(`Player ${client.sessionId} reconnected!`)
+      
+      // Notify client they are back (optional, but good for sync)
+      client.send('reconnected', {})
+
+    } catch (e) {
+      // Timeout or error -> remove player
+      console.log(`Player ${client.sessionId} failed to reconnect (timeout)`)
+      this.removePlayer(client.sessionId)
+    }
+  }
+
+  removePlayer(sessionId) {
+    // Remove physics body
+    const body = this.playerBodies.get(sessionId)
+    if (body) {
+      this.world.removeRigidBody(body)
+      this.playerBodies.delete(sessionId)
+    }
+
+    this.state.players.delete(sessionId)
 
     this.updateRoomMetadataCounts()
 
-    this.broadcast('player-left', { sessionId: client.sessionId })
+    this.broadcast('player-left', { sessionId })
 
     if (this.clients.length === 0 && !this.emptyDisposeTimeout) {
       this.emptyDisposeTimeout = this.clock.setTimeout(() => {
