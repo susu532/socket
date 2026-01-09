@@ -635,8 +635,96 @@ export class SoccerRoom extends Room {
       player.z = newZ
       player.rotY = rotY
 
-      
+      // Store previous rotation for dribble break check
+      player.prevRotY = player.prevRotY || rotY
+      if (Math.abs(rotY - player.prevRotY) > 0.01) {
+         player.prevRotY = rotY
+      }
     })
+
+    // --- Dribble Mechanics ---
+    if (this.ballBody) {
+      const ballPos = this.ballBody.translation()
+      const ballVel = this.ballBody.linvel()
+      let isDribbling = false
+      let dribblingPlayerId = null
+
+      // Dribble Constants
+      const DRIBBLE_RADIUS = 1.2
+      const DRIBBLE_HEIGHT = 1.5
+      const PLAYER_TOP_Y = 0.5
+      const CENTERING_IMPULSE = 0.15
+      const UPWARD_IMPULSE = 0.06
+      const VELOCITY_MATCH_RATE = 0.25
+      const BREAK_ACCEL_THRESHOLD = 12
+      const BREAK_ROTATION_THRESHOLD = 0.3
+      const BREAK_VELOCITY_THRESHOLD = 8
+
+      this.state.players.forEach((player, sessionId) => {
+        if (isDribbling) return // Only one player can dribble at a time
+
+        const body = this.playerBodies.get(sessionId)
+        if (!body) return
+
+        const playerPos = body.translation()
+        
+        // Check if ball is roughly above player
+        if (ballPos.y > playerPos.y + PLAYER_TOP_Y) {
+          const dx = ballPos.x - playerPos.x
+          const dz = ballPos.z - playerPos.z
+          const hDist = Math.sqrt(dx * dx + dz * dz)
+          const vDist = ballPos.y - (playerPos.y + PLAYER_TOP_Y)
+
+          // Giant mode scaling
+          const radiusScale = player.giant ? 2.0 : 1.0 // Reduced from 10x to 2x for balance
+          const impulseScale = player.giant ? 1.5 : 1.0
+
+          if (hDist < DRIBBLE_RADIUS * radiusScale && vDist < DRIBBLE_HEIGHT) {
+            // Check break conditions
+            const playerSpeed = Math.sqrt(player.vx * player.vx + player.vz * player.vz)
+            // Approx acceleration (change in velocity / dt) - simplified to speed check for now or use stored prev velocity
+            // For now, let's use relative velocity check as the main break condition
+            
+            const relVx = ballVel.x - player.vx
+            const relVz = ballVel.z - player.vz
+            const relSpeed = Math.sqrt(relVx * relVx + relVz * relVz)
+
+            // Rotation break check
+            const rotChange = Math.abs((player.rotY || 0) - (player.prevRotY || 0)) // This might need better frame-to-frame tracking
+
+            if (relSpeed < BREAK_VELOCITY_THRESHOLD && rotChange < BREAK_ROTATION_THRESHOLD) {
+              isDribbling = true
+              dribblingPlayerId = sessionId
+
+              // Apply Stabilization
+              
+              // 1. Centering Impulse (pull to center of car)
+              // Normalize direction to center
+              const dist = Math.max(0.001, hDist)
+              const dirX = -dx / dist
+              const dirZ = -dz / dist
+              
+              this.ballBody.applyImpulse({
+                x: dirX * CENTERING_IMPULSE * impulseScale,
+                y: UPWARD_IMPULSE * impulseScale, // 2. Upward Impulse (Anti-gravity)
+                z: dirZ * CENTERING_IMPULSE * impulseScale
+              }, true)
+
+              // 3. Velocity Matching
+              const newVx = ballVel.x + (player.vx - ballVel.x) * VELOCITY_MATCH_RATE
+              const newVz = ballVel.z + (player.vz - ballVel.z) * VELOCITY_MATCH_RATE
+              
+              this.ballBody.setLinvel({ x: newVx, y: ballVel.y, z: newVz }, true)
+
+              // 4. Grip (Friction/Restitution)
+              // We can't easily change collider props per frame without performance hit, 
+              // but the impulses simulate the "grip" well enough.
+              // If needed, we could swap materials, but let's try impulse-only first.
+            }
+          }
+        }
+      })
+    }
 
 
 
