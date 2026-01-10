@@ -236,7 +236,7 @@ export class SoccerRoom extends Room {
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
     const ballCollider = RAPIER.ColliderDesc.ball(0.8)
-      .setMass(1.5) // Reduced from 3.0
+      .setMass(3.0)
       .setRestitution(0.75)
       .setFriction(0.5)
 
@@ -603,7 +603,7 @@ export class SoccerRoom extends Room {
       let newZ = currentPos.z + player.vz * deltaTime
 
       // Vertical movement
-      const GRAVITY = 12 // Synced with client
+      const GRAVITY = 20
       const JUMP_FORCE = 8
       const GROUND_Y = 0.1
       const MAX_JUMPS = 2
@@ -647,47 +647,7 @@ export class SoccerRoom extends Room {
       
     })
 
-    // 1.5 Dribble Stabilization (Magnetic effect when ball is on top of player)
-    if (this.ballBody) {
-      const ballPos = this.ballBody.translation()
-      const ballVel = this.ballBody.linvel()
-      
-      this.state.players.forEach((player, sessionId) => {
-        const body = this.playerBodies.get(sessionId)
-        if (!body) return
-        
-        const playerPos = body.translation()
-        const dx = ballPos.x - playerPos.x
-        const dz = ballPos.z - playerPos.z
-        const dy = ballPos.y - playerPos.y
-        
-        const distSq = dx * dx + dz * dz
-        const isGiant = player.giant
-        const giantScale = isGiant ? 5 : 1
-        
-        // Detection range (scaled for giant)
-        const horizontalRange = 1.2 * giantScale
-        const verticalMin = 0.8 * giantScale
-        const verticalMax = 2.0 * giantScale
-        
-        if (distSq < horizontalRange * horizontalRange && dy > verticalMin && dy < verticalMax) {
-          // Apply centering force (Magnetic Dribble)
-          const strength = 15.0 // Force strength
-          this.ballBody.applyImpulse({
-            x: -dx * strength * (deltaTimeMs / 1000),
-            y: 0,
-            z: -dz * strength * (deltaTimeMs / 1000)
-          }, true)
-          
-          // Extra damping when on top to prevent sliding
-          this.ballBody.setLinvel({
-            x: ballVel.x * 0.95,
-            y: ballVel.y,
-            z: ballVel.z * 0.95
-          }, true)
-        }
-      })
-    }
+
 
     // 2. Step physics world
     this.world.step()
