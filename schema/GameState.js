@@ -18,6 +18,8 @@ export class PlayerState extends Schema {
     this.giant = false
     this.jumpCount = 0
     this.sessionId = ''
+    this.lastProcessedSeq = 0
+    this.subTickOffset = 0
     
     // Server-only input state (not synced)
     this.inputX = 0
@@ -55,7 +57,9 @@ defineTypes(PlayerState, {
   jumpMult: 'number',
   kickMult: 'number',
   jumpCount: 'number',
-  tick: 'number'
+  tick: 'number',
+  lastProcessedSeq: 'number',
+  subTickOffset: 'number'
 })
 
 // Power-up state
