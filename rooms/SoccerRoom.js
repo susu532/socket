@@ -27,7 +27,6 @@ export class SoccerRoom extends Room {
   timerInterval = null
   powerUpInterval = null
   currentTick = 0
-  lastTickTime = 0
   
   // Power-up types
   POWER_UP_TYPES = {
@@ -79,7 +78,6 @@ export class SoccerRoom extends Room {
     this.createBall()
 
     // Physics loop
-    this.lastTickTime = Date.now()
     this.setSimulationInterval((deltaTime) => this.physicsUpdate(deltaTime), PHYSICS_TICK_RATE)
 
     // Power-up spawning (every 20 seconds)
@@ -377,12 +375,6 @@ export class SoccerRoom extends Room {
     player.inputZ = data.z || 0
     player.inputJump = data.jump || false
     player.inputRotY = data.rotY || 0
-    player.lastProcessedSeq = data.seq || 0
-    
-    // Calculate sub-tick offset (how far into the current tick this input arrived)
-    const now = Date.now()
-    const timeSinceLastTick = now - this.lastTickTime
-    player.subTickOffset = Math.min(1, timeSinceLastTick / PHYSICS_TICK_RATE)
   }
 
   handleKick(client, data) {
@@ -561,7 +553,6 @@ export class SoccerRoom extends Room {
     const deltaTime = deltaTimeMs / 1000
     this.currentTick++
     this.state.currentTick = this.currentTick
-    this.lastTickTime = Date.now()
 
     // 1. Update players from stored inputs
     this.state.players.forEach((player, sessionId) => {
@@ -601,14 +592,17 @@ export class SoccerRoom extends Room {
       })
       
       // Smooth horizontal velocity
-      player.vx = player.vx || 0
+      // Direct velocity (snappy movement)
+           player.vx = player.vx || 0
       player.vz = player.vz || 0
-      player.vx = player.vx + (x * speed - player.vx) * 0.5
-      player.vz = player.vz + (z * speed - player.vz) * 0.5
+      player.vx = player.vx + (x * speed - player.vx) * 0.3
+      player.vz = player.vz + (z * speed - player.vz) * 0.3
+
 
       let newX = currentPos.x + player.vx * deltaTime
       let newZ = currentPos.z + player.vz * deltaTime
 
+      // Vertical movement
       const GRAVITY = 20
       const JUMP_FORCE = 8
       const GROUND_Y = 0.1
