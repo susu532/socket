@@ -2,7 +2,7 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
-import { PHYSICS } from '../PhysicsConstants.js'
+import { PHYSICS } from '../schema/PhysicsConstants.js'
 
 const PHYSICS_TICK_RATE = 1000 / PHYSICS.TICK_RATE 
 const GOAL_COOLDOWN = 5000          // 5 seconds
