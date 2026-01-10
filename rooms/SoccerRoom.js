@@ -2,8 +2,9 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
+import { PHYSICS } from '../PhysicsConstants.js'
 
-const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz for high-precision physics
+const PHYSICS_TICK_RATE = 1000 / PHYSICS.TICK_RATE 
 const GOAL_COOLDOWN = 5000          // 5 seconds
 const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
 
@@ -69,7 +70,7 @@ export class SoccerRoom extends Room {
     }
 
     // Physics world
-    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
+    this.world = new RAPIER.World({ x: 0, y: -PHYSICS.WORLD_GRAVITY, z: 0 })
 
     // Create arena colliders
     this.createArena()
@@ -135,7 +136,7 @@ export class SoccerRoom extends Room {
     const wallThickness = 2
 
     // Ground
-    const groundDesc = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.25, pitchDepth / 2)
+    const groundDesc = RAPIER.ColliderDesc.cuboid(PHYSICS.ARENA_WIDTH / 2, 0.25, PHYSICS.ARENA_DEPTH / 2)
       .setTranslation(0, -0.25, 0)
       .setFriction(2.0)
     this.world.createCollider(groundDesc)
@@ -235,9 +236,9 @@ export class SoccerRoom extends Room {
 
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
-    const ballCollider = RAPIER.ColliderDesc.ball(0.8)
-      .setMass(3.0)
-      .setRestitution(0.75)
+    const ballCollider = RAPIER.ColliderDesc.ball(PHYSICS.BALL_RADIUS)
+      .setMass(PHYSICS.BALL_MASS)
+      .setRestitution(PHYSICS.BALL_RESTITUTION)
       .setFriction(0.5)
 
     this.world.createCollider(ballCollider, this.ballBody)
@@ -250,7 +251,7 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+    const collider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
       .setTranslation(0, 0.2, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
@@ -391,7 +392,7 @@ export class SoccerRoom extends Room {
     const dz = ballPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if (dist < 3.0) {
+    if (dist < PHYSICS.KICK_RANGE) {
       const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
 
@@ -575,7 +576,7 @@ export class SoccerRoom extends Room {
         return // Skip physics for this frame
       }
 
-      const speed = 8 * (player.speedMult || 1)
+      const speed = PHYSICS.MOVE_SPEED * (player.speedMult || 1)
       const currentPos = body.translation()
 
       // Check for power-up collection
@@ -603,35 +604,29 @@ export class SoccerRoom extends Room {
       let newZ = currentPos.z + player.vz * deltaTime
 
       // Vertical movement
-      const GRAVITY = 20
-      const JUMP_FORCE = 8
-      const GROUND_Y = 0.1
-      const MAX_JUMPS = 2
-      const DOUBLE_JUMP_MULTIPLIER = 0.8
+      player.vy = (player.vy || 0) - PHYSICS.GRAVITY * deltaTime
 
-      player.vy = (player.vy || 0) - GRAVITY * deltaTime
-
-      if (currentPos.y <= GROUND_Y + 0.05 && player.vy <= 0) {
+      if (currentPos.y <= PHYSICS.GROUND_Y + 0.05 && player.vy <= 0) {
         player.jumpCount = 0
       }
 
-      if (jump && !player.prevJump && player.jumpCount < MAX_JUMPS) {
-        const jumpForce = JUMP_FORCE * (player.jumpMult || 1)
-        player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * DOUBLE_JUMP_MULTIPLIER
+      if (jump && !player.prevJump && player.jumpCount < PHYSICS.MAX_JUMPS) {
+        const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
+        player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
       }
       player.prevJump = jump
 
       let newY = currentPos.y + player.vy * deltaTime
-      if (newY < GROUND_Y) {
-        newY = GROUND_Y
+      if (newY < PHYSICS.GROUND_Y) {
+        newY = PHYSICS.GROUND_Y
         player.vy = 0
         player.jumpCount = 0
       }
 
       // Bounds
-      newX = Math.max(-14.7, Math.min(14.7, newX))
-      newZ = Math.max(-9.7, Math.min(9.7, newZ))
+      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH - 0.2, Math.min(PHYSICS.ARENA_HALF_WIDTH + 0.2, newX))
+      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH - 0.2, Math.min(PHYSICS.ARENA_HALF_DEPTH + 0.2, newZ))
 
       // Update physics body
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
@@ -761,7 +756,7 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
             .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
