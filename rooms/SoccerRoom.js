@@ -236,7 +236,7 @@ export class SoccerRoom extends Room {
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
     const ballCollider = RAPIER.ColliderDesc.ball(0.8)
-      .setMass(3.0)
+      .setMass(1.5) // Reduced from 3.0
       .setRestitution(0.75)
       .setFriction(0.5)
 
@@ -603,7 +603,7 @@ export class SoccerRoom extends Room {
       let newZ = currentPos.z + player.vz * deltaTime
 
       // Vertical movement
-      const GRAVITY = 20
+      const GRAVITY = 12 // Reduced from 20
       const JUMP_FORCE = 8
       const GROUND_Y = 0.1
       const MAX_JUMPS = 2
