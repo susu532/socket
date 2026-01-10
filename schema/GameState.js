@@ -34,6 +34,11 @@ export class PlayerState extends Schema {
     this.jumpMult = 1
     this.kickMult = 1
     this.tick = 0
+    
+    // Stats
+    this.goals = 0
+    this.assists = 0
+    this.shots = 0
   }
 }
 
@@ -55,7 +60,10 @@ defineTypes(PlayerState, {
   jumpMult: 'number',
   kickMult: 'number',
   jumpCount: 'number',
-  tick: 'number'
+  tick: 'number',
+  goals: 'number',
+  assists: 'number',
+  shots: 'number'
 })
 
 // Power-up state

@@ -29,6 +29,10 @@ export class SoccerRoom extends Room {
   powerUpInterval = null
   currentTick = 0
   
+  // Stats tracking
+  lastTouchSessionId = null
+  secondLastTouchSessionId = null
+  
   // Power-up types
   POWER_UP_TYPES = {
     speed: { duration: 15000 },
@@ -416,6 +420,13 @@ export class SoccerRoom extends Room {
 
       // Set ball ownership to kicker
       this.state.ball.ownerSessionId = client.sessionId
+
+      // Update stats and touch history
+      player.shots++
+      if (this.lastTouchSessionId !== client.sessionId) {
+        this.secondLastTouchSessionId = this.lastTouchSessionId
+        this.lastTouchSessionId = client.sessionId
+      }
     }
   }
 
@@ -531,6 +542,8 @@ export class SoccerRoom extends Room {
       this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true)
       this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true)
       this.state.ball.ownerSessionId = ''
+      this.lastTouchSessionId = null
+      this.secondLastTouchSessionId = null
     }
 
     // Reset player positions
@@ -698,6 +711,22 @@ export class SoccerRoom extends Room {
       }
 
       this.broadcast('goal-scored', { team: scoringTeam })
+
+      // Award goal and assist
+      if (this.lastTouchSessionId) {
+        const scorer = this.state.players.get(this.lastTouchSessionId)
+        if (scorer) {
+          scorer.goals++
+          
+          // Award assist if the second last touch was from a teammate
+          if (this.secondLastTouchSessionId) {
+            const assistant = this.state.players.get(this.secondLastTouchSessionId)
+            if (assistant && assistant.team === scorer.team && assistant.sessionId !== scorer.sessionId) {
+              assistant.assists++
+            }
+          }
+        }
+      }
 
       // Reset positions after delay
       this.clock.setTimeout(() => {
