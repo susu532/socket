@@ -26,6 +26,7 @@ export class SoccerRoom extends Room {
   lastGoalTime = 0
   timerInterval = null
   powerUpInterval = null
+  currentTick = 0
   
   // Power-up types
   POWER_UP_TYPES = {
@@ -546,6 +547,9 @@ export class SoccerRoom extends Room {
 
   physicsUpdate(deltaTimeMs) {
     const deltaTime = deltaTimeMs / 1000
+    this.currentTick++
+    this.state.currentTick = this.currentTick
+
     // 1. Update players from stored inputs
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
@@ -634,6 +638,7 @@ export class SoccerRoom extends Room {
       player.y = newY
       player.z = newZ
       player.rotY = rotY
+      player.tick = this.currentTick
 
       
     })
@@ -662,6 +667,7 @@ export class SoccerRoom extends Room {
       this.state.ball.ry = rot.y
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
+      this.state.ball.tick = this.currentTick
 
 
       // Limit angular velocity
