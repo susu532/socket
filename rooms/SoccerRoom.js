@@ -741,8 +741,8 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Radius 1.4 - 10x the new 0.14 base)
-        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
+        // Create GIANT collider (Radius 3.0 - 5x the base 0.6)
+        const giantCollider = RAPIER.ColliderDesc.cuboid(3.0, 2.0, 3.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
