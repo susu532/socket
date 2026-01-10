@@ -412,6 +412,9 @@ export class SoccerRoom extends Room {
           z: impulseZ 
         }
       })
+
+      // Set ball ownership to kicker
+      this.state.ball.ownerSessionId = client.sessionId
     }
   }
 
@@ -526,6 +529,7 @@ export class SoccerRoom extends Room {
       this.ballBody.setTranslation({ x: 0, y: 2, z: 0 }, true)
       this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true)
       this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true)
+      this.state.ball.ownerSessionId = ''
     }
 
     // Reset player positions

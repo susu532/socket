@@ -92,6 +92,7 @@ export class BallState extends Schema {
     this.rz = 0
     this.rw = 1
     this.tick = 0
+    this.ownerSessionId = ''
   }
 }
 
@@ -106,7 +107,8 @@ defineTypes(BallState, {
   ry: 'number',
   rz: 'number',
   rw: 'number',
-  tick: 'number'
+  tick: 'number',
+  ownerSessionId: 'string'
 })
 
 // Main game state
