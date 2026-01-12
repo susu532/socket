@@ -13,7 +13,7 @@ export const PHYSICS = {
   DOUBLE_JUMP_MULTIPLIER: 0.8,
   MAX_JUMPS: 2,
   GROUND_Y: 0.1,
-  PLAYER_RADIUS: 0.14,
+  PLAYER_RADIUS: 0.4,
   
   // Ball
   BALL_RADIUS: 0.8,
