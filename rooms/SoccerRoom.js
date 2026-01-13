@@ -739,39 +739,10 @@ export class SoccerRoom extends Room {
     // Update ball state from physics
     if (this.ballBody) {
       const pos = this.ballBody.translation()
-      let vel = this.ballBody.linvel()
+      const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
-      
-      // === ENHANCED BALL PHYSICS ===
-      const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
-      const isOnGround = pos.y <= PHYSICS.BALL_RADIUS + 0.05
-      
-      // 1. Air Resistance (quadratic drag) - more drag at higher speeds
-      if (speed > 0.1) {
-        const dragForce = PHYSICS.BALL_AIR_DRAG * speed * speed
-        const dragFactor = 1 - Math.min(0.1, dragForce) // Cap drag effect per tick
-        vel = {
-          x: vel.x * dragFactor,
-          y: vel.y * dragFactor,
-          z: vel.z * dragFactor
-        }
-        this.ballBody.setLinvel(vel, true)
-      }
-      
-      // 2. Ground-Aware Damping
-      // Apply higher damping when ball is rolling on ground
-      if (isOnGround && Math.abs(vel.y) < 1) {
-        const groundDampingFactor = 1 - (PHYSICS.BALL_GROUND_DAMPING * 0.01)
-        this.ballBody.setLinvel({
-          x: vel.x * groundDampingFactor,
-          y: vel.y,
-          z: vel.z * groundDampingFactor
-        }, true)
-        vel = this.ballBody.linvel()
-      }
 
-      // Sync state
-      this.state.ball.x = pos.x
+            this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
@@ -783,7 +754,8 @@ export class SoccerRoom extends Room {
       this.state.ball.rw = rot.w
       this.state.ball.tick = this.currentTick
 
-      // Limit angular velocity (prevents crazy spinning)
+
+      // Limit angular velocity
       const angvel = this.ballBody.angvel()
       const maxAv = 15.0
       const avSq = angvel.x ** 2 + angvel.y ** 2 + angvel.z ** 2
