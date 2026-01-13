@@ -5,7 +5,7 @@ export const PHYSICS = {
   
   // Gravity
   GRAVITY: 20,          // For players (manual physics)
-  WORLD_GRAVITY: 14,  // For ball (RAPIER world)
+  WORLD_GRAVITY: 10,  // For ball (RAPIER world)
   
   // Player
   MOVE_SPEED: 8,
