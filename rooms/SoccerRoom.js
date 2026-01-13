@@ -382,14 +382,22 @@ export class SoccerRoom extends Room {
 
     // Initialize queue if needed
     if (!player.inputQueue) player.inputQueue = []
+    if (player.lastReceivedTick === undefined) player.lastReceivedTick = 0
+
+    // Helper to process a single input
+    const processInput = (input) => {
+      // Deduplicate: Only accept newer inputs
+      if (input.tick > player.lastReceivedTick) {
+        player.inputQueue.push(input)
+        player.lastReceivedTick = input.tick
+      }
+    }
 
     // Handle batched inputs
     if (data.inputs && Array.isArray(data.inputs)) {
-      data.inputs.forEach(input => {
-        // Optional: Deduplicate based on tick/sequence if needed
-        // For now, we trust the client to send ordered batches
-        player.inputQueue.push(input)
-      })
+      // Sort batch by tick to ensure correct order processing
+      data.inputs.sort((a, b) => a.tick - b.tick)
+      data.inputs.forEach(processInput)
       
       // Safety: Cap queue size to prevent memory leaks or speed hacks
       if (player.inputQueue.length > 60) {
@@ -397,7 +405,7 @@ export class SoccerRoom extends Room {
       }
     } else {
       // Legacy/Single input fallback
-      player.inputQueue.push(data)
+      processInput(data)
     }
   }
 
