@@ -564,7 +564,10 @@ export class SoccerRoom extends Room {
   }
 
   physicsUpdate(deltaTimeMs) {
-    const deltaTime = deltaTimeMs / 1000
+    // Jitter Fix: Enforce fixed timestep for deterministic physics
+    // We ignore the actual variable deltaTimeMs and assume a perfect 120Hz step
+    // This matches the client's prediction loop exactly.
+    const deltaTime = PHYSICS.FIXED_TIMESTEP
     this.currentTick++
     this.state.currentTick = this.currentTick
 
