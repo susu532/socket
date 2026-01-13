@@ -134,10 +134,10 @@ export class SoccerRoom extends Room {
   }
 
   createArena() {
-    const pitchWidth = 30
-    const pitchDepth = 20
-    const wallHeight = 10
-    const wallThickness = 2
+    const pitchWidth = PHYSICS.ARENA_WIDTH
+    const pitchDepth = PHYSICS.ARENA_DEPTH
+    const wallHeight = PHYSICS.WALL_HEIGHT
+    const wallThickness = PHYSICS.WALL_THICKNESS
 
     // Ground
     const groundDesc = RAPIER.ColliderDesc.cuboid(PHYSICS.ARENA_WIDTH / 2, 0.25, PHYSICS.ARENA_DEPTH / 2)
@@ -431,7 +431,7 @@ export class SoccerRoom extends Room {
       // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + 0.8, // Base vertical boost (not scaled by kickMult again)
+        y: impulseY + PHYSICS.KICK_VERTICAL_BOOST, // Base vertical boost (not scaled by kickMult again)
         z: impulseZ 
       }, true)
 
@@ -440,7 +440,7 @@ export class SoccerRoom extends Room {
         playerId: client.sessionId,
         impulse: { 
           x: impulseX, 
-          y: impulseY + 0.8 * kickMult, // Visual boost scaled
+          y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, // Visual boost scaled
           z: impulseZ 
         }
       })
@@ -944,7 +944,7 @@ export class SoccerRoom extends Room {
       // Vertical distance (relative to player head height)
       // Player head is roughly at y = 0.8 (radius 0.4 * 2)
       // We want the zone to be slightly above that
-      const headTopY = playerPos.y + (player.giant ? 4.0 : 0.8)
+      const headTopY = playerPos.y + (player.giant ? 4.0 : PHYSICS.PLAYER_HEIGHT)
       const dy = ballPos.y - headTopY
       
       const zoneRadius = PHYSICS.HEAD_ZONE_RADIUS * (player.giant ? 5.0 : 1.0)
