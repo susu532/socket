@@ -654,18 +654,10 @@ export class SoccerRoom extends Room {
       
       // Smooth horizontal velocity
       // Direct velocity (snappy movement)
-           // Instant stop with dead-zone (matches client)
-      const targetVx = x * speed
-      const targetVz = z * speed
-      if (targetVx === 0 && targetVz === 0) {
-        if (Math.abs(player.vx) < 0.1) player.vx = 0
-        if (Math.abs(player.vz) < 0.1) player.vz = 0
-        player.vx *= 0.7
-        player.vz *= 0.7
-      } else {
-        player.vx = player.vx + (targetVx - player.vx) * 0.5
-        player.vz = player.vz + (targetVz - player.vz) * 0.5
-      }
+           player.vx = player.vx || 0
+      player.vz = player.vz || 0
+      player.vx = player.vx + (x * speed - player.vx) * 0.8
+      player.vz = player.vz + (z * speed - player.vz) * 0.8
 
 
       let newX = currentPos.x + player.vx * deltaTime
