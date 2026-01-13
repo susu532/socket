@@ -54,4 +54,20 @@ export const PHYSICS = {
   HEAD_VELOCITY_MATCH: 0.85,     // Perfect 1:1 movement sync (was 0.85)
   HEAD_DAMPING: 8.0,            // Kill all bounce (was 2.0)
   VELOCITY_SMOOTHING: 0.95,       // Snappy velocity response (was 0.8)
+  VELOCITY_SMOOTHING_SUB: 0.975,  // Adjusted for 120Hz sub-frames
+  
+  // Sub-frame Prediction
+  SUB_FRAME_RATE: 120,
+  SUB_FRAME_TIMESTEP: 1 / 120,
+  INPUT_PREDICTION_LOOKAHEAD: 0.033, // 2 frames @ 60Hz
+  
+  // Aggressive Visual Smoothing
+  VISUAL_LAMBDA_MIN: 30,          // Snappier base response
+  VISUAL_LAMBDA_MAX: 50,          // Faster at speed
+  VISUAL_OFFSET_DECAY: 0.35,      // Faster correction hiding
+  
+  // Latency Compensation
+  MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
+  RECONCILE_BLEND_FAST: 0.5,      // Faster blending when needed
+  RECONCILE_BLEND_SLOW: 0.15      // Less sluggish slow blend
 }
