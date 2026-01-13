@@ -13,9 +13,8 @@ export const PHYSICS = {
   DOUBLE_JUMP_MULTIPLIER: 0.8,
   MAX_JUMPS: 2,
   GROUND_Y: 0.1,
+  GROUND_CHECK_EPSILON: 0.05,
   PLAYER_RADIUS: 0.4,
-  COYOTE_TIME: 0.1,          // 100ms grace period after leaving ground
-  JUMP_BUFFER_TIME: 0.15,    // 150ms pre-land buffer
   
   // Ball
   BALL_RADIUS: 0.8,

@@ -255,8 +255,8 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
-      .setTranslation(0, 0.2, 0)
+    const collider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
+      .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
 
@@ -316,6 +316,7 @@ export class SoccerRoom extends Room {
     player.y = spawn.y
     player.z = spawn.z
     player.sessionId = client.sessionId
+    player.lastProcessedJumpRequestId = 0 // Track processed jumps
 
     this.state.players.set(client.sessionId, player)
 
@@ -426,7 +427,7 @@ export class SoccerRoom extends Room {
       // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + 0.8 * kickMult, // Add base vertical boost scaled by power
+        y: impulseY + 0.8, // Base vertical boost (not scaled by kickMult again)
         z: impulseZ 
       }, true)
 
@@ -617,7 +618,7 @@ export class SoccerRoom extends Room {
 
         const x = input.x || 0
         const z = input.z || 0
-        const jump = input.jump || false
+        const jumpRequestId = input.jumpRequestId || 0
         const rotY = input.rotY || 0
 
         // Handle forced reset
@@ -661,58 +662,28 @@ export class SoccerRoom extends Room {
       // Vertical movement
       player.vy = (player.vy || 0) - PHYSICS.GRAVITY * deltaTime
 
-      // Ground check with coyote time tracking
-      const wasOnGround = player.isOnGround || false
-      if (currentPos.y <= PHYSICS.GROUND_Y + 0.05 && player.vy <= 0) {
+      if (currentPos.y <= PHYSICS.GROUND_Y + PHYSICS.GROUND_CHECK_EPSILON && player.vy <= 0) {
         player.jumpCount = 0
-        player.isOnGround = true
-        player.lastGroundedTick = this.currentTick
-      } else {
-        player.isOnGround = false
       }
 
-      // Coyote Time: Allow jump for COYOTE_TIME after leaving ground
-      // Convert time to ticks (COYOTE_TIME * TICK_RATE)
-      const coyoteTicks = Math.floor(PHYSICS.COYOTE_TIME * PHYSICS.TICK_RATE)
-      const ticksSinceGrounded = this.currentTick - (player.lastGroundedTick || 0)
-      const coyoteActive = ticksSinceGrounded < coyoteTicks
-      const canCoyoteJump = !player.isOnGround && coyoteActive && player.jumpCount === 0
-
-      // Jump Buffer: Track when jump was requested
-      const jumpBufferTicks = Math.floor(PHYSICS.JUMP_BUFFER_TIME * PHYSICS.TICK_RATE)
-      if (jump && !player.prevJump) {
-        player.jumpBufferTick = this.currentTick
-      }
-      const ticksSinceJumpRequest = this.currentTick - (player.jumpBufferTick || -1000)
-      const jumpBuffered = ticksSinceJumpRequest < jumpBufferTicks
-
-      // Determine if we should jump
-      const wantsJump = jump && !player.prevJump
-      const bufferedLanding = jumpBuffered && !wasOnGround && player.isOnGround
-      const shouldJump = (wantsJump || bufferedLanding) && 
-                         (player.isOnGround || canCoyoteJump || player.jumpCount < PHYSICS.MAX_JUMPS)
-
-      if (shouldJump && player.jumpCount < PHYSICS.MAX_JUMPS) {
+      // Jump Request ID Logic: Only jump if we see a NEW request ID
+      if (jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
         const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
         player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
-        player.isOnGround = false
-        player.jumpBufferTick = -1000 // Clear buffer
+        player.lastProcessedJumpRequestId = jumpRequestId
       }
-      player.prevJump = jump
 
       let newY = currentPos.y + player.vy * deltaTime
       if (newY < PHYSICS.GROUND_Y) {
         newY = PHYSICS.GROUND_Y
         player.vy = 0
         player.jumpCount = 0
-        player.isOnGround = true
-        player.lastGroundedTick = this.currentTick
       }
 
       // Bounds
-      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH - 0.2, Math.min(PHYSICS.ARENA_HALF_WIDTH + 0.2, newX))
-      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH - 0.2, Math.min(PHYSICS.ARENA_HALF_DEPTH + 0.2, newZ))
+      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
+      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
 
       // Update physics body
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
@@ -873,9 +844,8 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Radius 2.0 - matches client's 5x scale)
-        // Was 3.0, which was too big and caused mismatches
-        const giantCollider = RAPIER.ColliderDesc.cuboid(2.0, 2.0, 2.0)
+        // Create GIANT collider (Sphere Radius 2.0 - matches client's 5x scale)
+        const giantCollider = RAPIER.ColliderDesc.ball(2.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
