@@ -194,7 +194,7 @@ export class SoccerRoom extends Room {
     // Crossbars
     const crossbarPositions = [[-10.8, 0], [10.8, 0]]
     crossbarPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(3, 0.04)
+      const desc = RAPIER.ColliderDesc.cylinder(3, 0.02)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
         .setRestitution(0.8)
@@ -375,11 +375,25 @@ export class SoccerRoom extends Room {
     const player = this.state.players.get(client.sessionId)
     if (!player) return
 
-    // Store input for the physics loop
-    player.inputX = data.x || 0
-    player.inputZ = data.z || 0
-    player.inputJump = data.jump || false
-    player.inputRotY = data.rotY || 0
+    // Initialize queue if needed
+    if (!player.inputQueue) player.inputQueue = []
+
+    // Handle batched inputs
+    if (data.inputs && Array.isArray(data.inputs)) {
+      data.inputs.forEach(input => {
+        // Optional: Deduplicate based on tick/sequence if needed
+        // For now, we trust the client to send ordered batches
+        player.inputQueue.push(input)
+      })
+      
+      // Safety: Cap queue size to prevent memory leaks or speed hacks
+      if (player.inputQueue.length > 60) {
+        player.inputQueue = player.inputQueue.slice(-60)
+      }
+    } else {
+      // Legacy/Single input fallback
+      player.inputQueue.push(data)
+    }
   }
 
   handleKick(client, data) {
@@ -571,42 +585,59 @@ export class SoccerRoom extends Room {
     this.currentTick++
     this.state.currentTick = this.currentTick
 
-    // 1. Update players from stored inputs
-    this.state.players.forEach((player, sessionId) => {
-      const body = this.playerBodies.get(sessionId)
-      if (!body) return
+      // 1. Update players from Input Queue
+      this.state.players.forEach((player, sessionId) => {
+        const body = this.playerBodies.get(sessionId)
+        if (!body) return
 
-      const x = player.inputX || 0
-      const z = player.inputZ || 0
-      const jump = player.inputJump || false
-      const rotY = player.inputRotY || 0
+        // Initialize input queue if needed
+        if (!player.inputQueue) player.inputQueue = []
 
-      // Handle forced reset
-      if (player.resetPosition) {
-        const spawnX = player.team === 'red' ? -6 : 6
-        body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
-        player.vx = 0
-        player.vy = 0
-        player.vz = 0
-        player.resetPosition = false
-        return // Skip physics for this frame
-      }
+        // Get next input from queue
+        // We process ONE input per physics tick to match client rate (1:1)
+        let input = player.inputQueue.shift()
 
-      const speed = PHYSICS.MOVE_SPEED * (player.speedMult || 1)
-      const currentPos = body.translation()
-
-      // Check for power-up collection
-      this.state.powerUps.forEach((p, id) => {
-        const dx = currentPos.x - p.x
-        const dz = currentPos.z - p.z
-        const dist = Math.sqrt(dx * dx + dz * dz)
-        
-        if (dist < 1.5) {
-          this.applyPowerUp(player, p.type)
-          this.state.powerUps.delete(id)
-          this.broadcast('powerup-collected', { sessionId, type: p.type })
+        // If no input, use last known input (Prediction/Lag Compensation)
+        // But we must be careful not to drift.
+        // For now, just hold the last button state but zero out movement if queue is empty for too long?
+        // No, standard is to repeat last input.
+        if (!input) {
+           input = player.lastInput || { x: 0, z: 0, jump: false, rotY: player.rotY }
+        } else {
+           player.lastInput = input
         }
-      })
+
+        const x = input.x || 0
+        const z = input.z || 0
+        const jump = input.jump || false
+        const rotY = input.rotY || 0
+
+        // Handle forced reset
+        if (player.resetPosition) {
+          const spawnX = player.team === 'red' ? -6 : 6
+          body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
+          player.vx = 0
+          player.vy = 0
+          player.vz = 0
+          player.resetPosition = false
+          return // Skip physics for this frame
+        }
+
+        const speed = PHYSICS.MOVE_SPEED * (player.speedMult || 1)
+        const currentPos = body.translation()
+
+        // Check for power-up collection
+        this.state.powerUps.forEach((p, id) => {
+          const dx = currentPos.x - p.x
+          const dz = currentPos.z - p.z
+          const dist = Math.sqrt(dx * dx + dz * dz)
+          
+          if (dist < 1.5) {
+            this.applyPowerUp(player, p.type)
+            this.state.powerUps.delete(id)
+            this.broadcast('powerup-collected', { sessionId, type: p.type })
+          }
+        })
       
       // Smooth horizontal velocity
       // Direct velocity (snappy movement)
@@ -768,12 +799,43 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Radius 3.0 - 5x the base 0.6)
-        const giantCollider = RAPIER.ColliderDesc.cuboid(3.0, 2.0, 3.0)
+        // Create GIANT collider (Radius 2.0 - matches client's 5x scale)
+        // Was 3.0, which was too big and caused mismatches
+        const giantCollider = RAPIER.ColliderDesc.cuboid(2.0, 2.0, 2.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
         
+        // SAFETY: Push ball away if it's too close to prevent crushing
+        if (this.ballBody) {
+          const ballPos = this.ballBody.translation()
+          const playerPos = body.translation()
+          const dx = ballPos.x - playerPos.x
+          const dz = ballPos.z - playerPos.z
+          const dist = Math.sqrt(dx * dx + dz * dz)
+          
+          // If ball is within the new giant radius (2.0) + ball radius (0.8) + buffer
+          if (dist < 3.5) {
+            // Calculate push direction
+            let pushX = dx
+            let pushZ = dz
+            if (dist < 0.1) { pushX = 1; pushZ = 0 } // Handle perfect overlap
+            
+            // Normalize
+            const len = Math.sqrt(pushX * pushX + pushZ * pushZ)
+            pushX /= len
+            pushZ /= len
+            
+            // Teleport ball to safety (4.0m away)
+            const safeX = playerPos.x + pushX * 4.0
+            const safeZ = playerPos.z + pushZ * 4.0
+            
+            // Wake up and move
+            this.ballBody.setTranslation({ x: safeX, y: 2, z: safeZ }, true)
+            this.ballBody.setLinvel({ x: pushX * 10, y: 5, z: pushZ * 10 }, true)
+          }
+        }
+
         this.world.createCollider(giantCollider, body)
       }
 
