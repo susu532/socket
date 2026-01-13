@@ -5,7 +5,7 @@ export const PHYSICS = {
   
   // Gravity
   GRAVITY: 20,          // For players (manual physics)
-  WORLD_GRAVITY: 9.81,  // For ball (RAPIER world)
+  WORLD_GRAVITY: 14,  // For ball (RAPIER world)
   
   // Player
   MOVE_SPEED: 8,
@@ -19,9 +19,15 @@ export const PHYSICS = {
   // Ball
   BALL_RADIUS: 0.8,
   BALL_MASS: 3.0,
-  BALL_RESTITUTION: 0.75,
+  BALL_RESTITUTION: 0.9,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
+  
+  // Restitution
+  GROUND_RESTITUTION: 0.8,
+  WALL_RESTITUTION: 0.6,
+  GOAL_RESTITUTION: 1.2,
+  POST_RESTITUTION: 0.8,
   
   // Mechanics
   KICK_RANGE: 3.0,
