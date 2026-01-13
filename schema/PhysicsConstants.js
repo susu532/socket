@@ -75,5 +75,20 @@ export const PHYSICS = {
   // Latency Compensation
   MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
   RECONCILE_BLEND_FAST: 0.5,      // Faster blending when needed
-  RECONCILE_BLEND_SLOW: 0.15      // Less sluggish slow blend
+  RECONCILE_BLEND_SLOW: 0.15,      // Less sluggish slow blend
+
+  // S-Tier Sub-Frame Precision
+  VISUAL_RATE: 240,                   // 240Hz visual interpolation  
+  VISUAL_TIMESTEP: 1 / 240,
+  KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
+  TOUCH_RESPONSE_BOOST: 1.5,          // Boost factor for first-touch
+  
+  // Adaptive Reconciliation Tiers
+  RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
+  RECONCILE_TIER_2_PING: 150,         // 50-150ms: balanced
+  RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
+  
+  // Collision Prediction Tuning
+  SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
+  INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 }
