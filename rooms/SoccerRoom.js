@@ -656,8 +656,8 @@ export class SoccerRoom extends Room {
       // Direct velocity (snappy movement)
            player.vx = player.vx || 0
       player.vz = player.vz || 0
-      player.vx = player.vx + (x * speed - player.vx) * 0.3
-      player.vz = player.vz + (z * speed - player.vz) * 0.3
+      player.vx = player.vx + (x * speed - player.vx) * 0.8
+      player.vz = player.vz + (z * speed - player.vz) * 0.8
 
 
       let newX = currentPos.x + player.vx * deltaTime
