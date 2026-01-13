@@ -26,7 +26,7 @@ export const PHYSICS = {
   // Restitution
   GROUND_RESTITUTION: 0.6,
   WALL_RESTITUTION: 0.3,
-  GOAL_RESTITUTION: 1.2,
+  GOAL_RESTITUTION: 0.6,
   POST_RESTITUTION: 0.3,
   
   // Mechanics
