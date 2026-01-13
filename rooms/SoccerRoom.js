@@ -2,8 +2,9 @@ import { Room } from 'colyseus'
 import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
+import { PHYSICS } from '../schema/PhysicsConstants.js'
 
-const PHYSICS_TICK_RATE = 1000 / 120 // 120Hz for high-precision physics
+const PHYSICS_TICK_RATE = 1000 / PHYSICS.TICK_RATE 
 const GOAL_COOLDOWN = 5000          // 5 seconds
 const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
 
@@ -26,6 +27,11 @@ export class SoccerRoom extends Room {
   lastGoalTime = 0
   timerInterval = null
   powerUpInterval = null
+  currentTick = 0
+  
+  // Stats tracking
+  lastTouchSessionId = null
+  secondLastTouchSessionId = null
   
   // Power-up types
   POWER_UP_TYPES = {
@@ -40,8 +46,8 @@ export class SoccerRoom extends Room {
     await RAPIER.init()
     this.setState(new GameState())
     
-    // Set patch rate to 60Hz (16ms) for smoother updates with 120Hz physics
-    this.setPatchRate(16)
+    // Set patch rate to 30Hz (33ms) to reduce bandwidth usage
+    this.setPatchRate(33)
 
     this.roomCreatedAt = Date.now()
 
@@ -68,7 +74,7 @@ export class SoccerRoom extends Room {
     }
 
     // Physics world
-    this.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 })
+    this.world = new RAPIER.World({ x: 0, y: -PHYSICS.WORLD_GRAVITY, z: 0 })
 
     // Create arena colliders
     this.createArena()
@@ -134,7 +140,7 @@ export class SoccerRoom extends Room {
     const wallThickness = 2
 
     // Ground
-    const groundDesc = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.25, pitchDepth / 2)
+    const groundDesc = RAPIER.ColliderDesc.cuboid(PHYSICS.ARENA_WIDTH / 2, 0.25, PHYSICS.ARENA_DEPTH / 2)
       .setTranslation(0, -0.25, 0)
       .setFriction(2.0)
     this.world.createCollider(groundDesc)
@@ -188,7 +194,7 @@ export class SoccerRoom extends Room {
     // Crossbars
     const crossbarPositions = [[-10.8, 0], [10.8, 0]]
     crossbarPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(3, 0.04)
+      const desc = RAPIER.ColliderDesc.cylinder(3, 0.02)
         .setTranslation(x, 4, z)
         .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
         .setRestitution(0.8)
@@ -229,14 +235,14 @@ export class SoccerRoom extends Room {
     const ballBodyDesc = RAPIER.RigidBodyDesc.dynamic()
       .setTranslation(0, 2, 0)
       .setCcdEnabled(true)
-      .setLinearDamping(1.5)
-      .setAngularDamping(1.5)
+      .setLinearDamping(PHYSICS.BALL_LINEAR_DAMPING)
+      .setAngularDamping(PHYSICS.BALL_ANGULAR_DAMPING)
 
     this.ballBody = this.world.createRigidBody(ballBodyDesc)
 
-    const ballCollider = RAPIER.ColliderDesc.ball(0.8)
-      .setMass(3.0)
-      .setRestitution(0.75)
+    const ballCollider = RAPIER.ColliderDesc.ball(PHYSICS.BALL_RADIUS)
+      .setMass(PHYSICS.BALL_MASS)
+      .setRestitution(PHYSICS.BALL_RESTITUTION)
       .setFriction(0.5)
 
     this.world.createCollider(ballCollider, this.ballBody)
@@ -249,8 +255,8 @@ export class SoccerRoom extends Room {
 
     const body = this.world.createRigidBody(bodyDesc)
 
-    const collider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
-      .setTranslation(0, 0.2, 0)
+    const collider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
+      .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
 
@@ -310,6 +316,7 @@ export class SoccerRoom extends Room {
     player.y = spawn.y
     player.z = spawn.z
     player.sessionId = client.sessionId
+    player.lastProcessedJumpRequestId = 0 // Track processed jumps
 
     this.state.players.set(client.sessionId, player)
 
@@ -369,11 +376,33 @@ export class SoccerRoom extends Room {
     const player = this.state.players.get(client.sessionId)
     if (!player) return
 
-    // Store input for the physics loop
-    player.inputX = data.x || 0
-    player.inputZ = data.z || 0
-    player.inputJump = data.jump || false
-    player.inputRotY = data.rotY || 0
+    // Initialize queue if needed
+    if (!player.inputQueue) player.inputQueue = []
+    if (player.lastReceivedTick === undefined) player.lastReceivedTick = 0
+
+    // Helper to process a single input
+    const processInput = (input) => {
+      // Deduplicate: Only accept newer inputs
+      if (input.tick > player.lastReceivedTick) {
+        player.inputQueue.push(input)
+        player.lastReceivedTick = input.tick
+      }
+    }
+
+    // Handle batched inputs
+    if (data.inputs && Array.isArray(data.inputs)) {
+      // Sort batch by tick to ensure correct order processing
+      data.inputs.sort((a, b) => a.tick - b.tick)
+      data.inputs.forEach(processInput)
+      
+      // Safety: Cap queue size to prevent memory leaks or speed hacks
+      if (player.inputQueue.length > 60) {
+        player.inputQueue = player.inputQueue.slice(-60)
+      }
+    } else {
+      // Legacy/Single input fallback
+      processInput(data)
+    }
   }
 
   handleKick(client, data) {
@@ -390,7 +419,7 @@ export class SoccerRoom extends Room {
     const dz = ballPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
-    if (dist < 3.0) {
+    if (dist < PHYSICS.KICK_RANGE) {
       const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
 
@@ -398,7 +427,7 @@ export class SoccerRoom extends Room {
       // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + 0.8 * kickMult, // Add base vertical boost scaled by power
+        y: impulseY + 0.8, // Base vertical boost (not scaled by kickMult again)
         z: impulseZ 
       }, true)
 
@@ -411,6 +440,16 @@ export class SoccerRoom extends Room {
           z: impulseZ 
         }
       })
+
+      // Set ball ownership to kicker
+      this.state.ball.ownerSessionId = client.sessionId
+
+      // Update stats and touch history
+      player.shots++
+      if (this.lastTouchSessionId !== client.sessionId) {
+        this.secondLastTouchSessionId = this.lastTouchSessionId
+        this.lastTouchSessionId = client.sessionId
+      }
     }
   }
 
@@ -525,6 +564,9 @@ export class SoccerRoom extends Room {
       this.ballBody.setTranslation({ x: 0, y: 2, z: 0 }, true)
       this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true)
       this.ballBody.setAngvel({ x: 0, y: 0, z: 0 }, true)
+      this.state.ball.ownerSessionId = ''
+      this.lastTouchSessionId = null
+      this.secondLastTouchSessionId = null
     }
 
     // Reset player positions
@@ -545,85 +587,103 @@ export class SoccerRoom extends Room {
   }
 
   physicsUpdate(deltaTimeMs) {
-    const deltaTime = deltaTimeMs / 1000
-    // 1. Update players from stored inputs
-    this.state.players.forEach((player, sessionId) => {
-      const body = this.playerBodies.get(sessionId)
-      if (!body) return
+    // Jitter Fix: Enforce fixed timestep for deterministic physics
+    // We ignore the actual variable deltaTimeMs and assume a perfect 120Hz step
+    // This matches the client's prediction loop exactly.
+    const deltaTime = PHYSICS.FIXED_TIMESTEP
+    this.currentTick++
+    this.state.currentTick = this.currentTick
 
-      const x = player.inputX || 0
-      const z = player.inputZ || 0
-      const jump = player.inputJump || false
-      const rotY = player.inputRotY || 0
+      // 1. Update players from Input Queue
+      this.state.players.forEach((player, sessionId) => {
+        const body = this.playerBodies.get(sessionId)
+        if (!body) return
 
-      // Handle forced reset
-      if (player.resetPosition) {
-        const spawnX = player.team === 'red' ? -6 : 6
-        body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
-        player.vx = 0
-        player.vy = 0
-        player.vz = 0
-        player.resetPosition = false
-        return // Skip physics for this frame
-      }
+        // Initialize input queue if needed
+        if (!player.inputQueue) player.inputQueue = []
 
-      const speed = 8 * (player.speedMult || 1)
-      const currentPos = body.translation()
+        // Get next input from queue
+        // We process ONE input per physics tick to match client rate (1:1)
+        let input = player.inputQueue.shift()
 
-      // Check for power-up collection
-      this.state.powerUps.forEach((p, id) => {
-        const dx = currentPos.x - p.x
-        const dz = currentPos.z - p.z
-        const dist = Math.sqrt(dx * dx + dz * dz)
-        
-        if (dist < 1.5) {
-          this.applyPowerUp(player, p.type)
-          this.state.powerUps.delete(id)
-          this.broadcast('powerup-collected', { sessionId, type: p.type })
+        // If no input, use last known input (Prediction/Lag Compensation)
+        // But we must be careful not to drift.
+        // For now, just hold the last button state but zero out movement if queue is empty for too long?
+        // No, standard is to repeat last input.
+        if (!input) {
+           input = player.lastInput || { x: 0, z: 0, jump: false, rotY: player.rotY }
+        } else {
+           player.lastInput = input
         }
-      })
+
+        const x = input.x || 0
+        const z = input.z || 0
+        const jumpRequestId = input.jumpRequestId || 0
+        const rotY = input.rotY || 0
+
+        // Handle forced reset
+        if (player.resetPosition) {
+          const spawnX = player.team === 'red' ? -6 : 6
+          body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
+          player.vx = 0
+          player.vy = 0
+          player.vz = 0
+          player.resetPosition = false
+          return // Skip physics for this frame
+        }
+
+        const speed = PHYSICS.MOVE_SPEED * (player.speedMult || 1)
+        const currentPos = body.translation()
+
+        // Check for power-up collection
+        this.state.powerUps.forEach((p, id) => {
+          const dx = currentPos.x - p.x
+          const dz = currentPos.z - p.z
+          const dist = Math.sqrt(dx * dx + dz * dz)
+          
+          if (dist < 1.5) {
+            this.applyPowerUp(player, p.type)
+            this.state.powerUps.delete(id)
+            this.broadcast('powerup-collected', { sessionId, type: p.type })
+          }
+        })
       
       // Smooth horizontal velocity
       // Direct velocity (snappy movement)
            player.vx = player.vx || 0
       player.vz = player.vz || 0
-      player.vx = player.vx + (x * speed - player.vx) * 0.3
-      player.vz = player.vz + (z * speed - player.vz) * 0.3
+      player.vx = player.vx + (x * speed - player.vx) * 0.8
+      player.vz = player.vz + (z * speed - player.vz) * 0.8
 
 
       let newX = currentPos.x + player.vx * deltaTime
       let newZ = currentPos.z + player.vz * deltaTime
 
       // Vertical movement
-      const GRAVITY = 20
-      const JUMP_FORCE = 8
-      const GROUND_Y = 0.1
-      const MAX_JUMPS = 2
-      const DOUBLE_JUMP_MULTIPLIER = 0.8
+      player.vy = (player.vy || 0) - PHYSICS.GRAVITY * deltaTime
 
-      player.vy = (player.vy || 0) - GRAVITY * deltaTime
-
-      if (currentPos.y <= GROUND_Y + 0.05 && player.vy <= 0) {
+      if (currentPos.y <= PHYSICS.GROUND_Y + PHYSICS.GROUND_CHECK_EPSILON && player.vy <= 0) {
         player.jumpCount = 0
       }
 
-      if (jump && !player.prevJump && player.jumpCount < MAX_JUMPS) {
-        const jumpForce = JUMP_FORCE * (player.jumpMult || 1)
-        player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * DOUBLE_JUMP_MULTIPLIER
+      // Jump Request ID Logic: Only jump if we see a NEW request ID
+      if (jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
+        const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
+        player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
+        player.lastProcessedJumpRequestId = jumpRequestId
       }
-      player.prevJump = jump
 
       let newY = currentPos.y + player.vy * deltaTime
-      if (newY < GROUND_Y) {
-        newY = GROUND_Y
+      if (newY < PHYSICS.GROUND_Y) {
+        newY = PHYSICS.GROUND_Y
         player.vy = 0
         player.jumpCount = 0
       }
 
       // Bounds
-      newX = Math.max(-14.7, Math.min(14.7, newX))
-      newZ = Math.max(-9.7, Math.min(9.7, newZ))
+      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
+      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
 
       // Update physics body
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
@@ -634,6 +694,7 @@ export class SoccerRoom extends Room {
       player.y = newY
       player.z = newZ
       player.rotY = rotY
+      player.tick = this.currentTick
 
       
     })
@@ -662,6 +723,7 @@ export class SoccerRoom extends Room {
       this.state.ball.ry = rot.y
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
+      this.state.ball.tick = this.currentTick
 
 
       // Limit angular velocity
@@ -681,8 +743,15 @@ export class SoccerRoom extends Room {
 
     const pos = this.ballBody.translation()
 
-    // Goal detection: |x| > 11.3 && |z| < 2.3 && y < 4
-    if (Math.abs(pos.x) > 11.3 && Math.abs(pos.z) < 2.3 && pos.y < 4) {
+    // Goal detection: Ball fully past goal line and within posts
+    // We check if X is past the line + radius (fully in)
+    // And Z is within the goal width (minus a small margin to avoid post collisions triggering)
+    const goalLineX = PHYSICS.GOAL_LINE_X
+    const goalZ = PHYSICS.GOAL_WIDTH / 2
+    
+    if (Math.abs(pos.x) > goalLineX + PHYSICS.BALL_RADIUS && 
+        Math.abs(pos.z) < goalZ && 
+        pos.y < PHYSICS.GOAL_HEIGHT) {
       this.lastGoalTime = Date.now()
 
       const scoringTeam = pos.x > 0 ? 'red' : 'blue'
@@ -693,6 +762,22 @@ export class SoccerRoom extends Room {
       }
 
       this.broadcast('goal-scored', { team: scoringTeam })
+
+      // Award goal and assist
+      if (this.lastTouchSessionId) {
+        const scorer = this.state.players.get(this.lastTouchSessionId)
+        if (scorer) {
+          scorer.goals++
+          
+          // Award assist if the second last touch was from a teammate
+          if (this.secondLastTouchSessionId) {
+            const assistant = this.state.players.get(this.secondLastTouchSessionId)
+            if (assistant && assistant.team === scorer.team && assistant.sessionId !== scorer.sessionId) {
+              assistant.assists++
+            }
+          }
+        }
+      }
 
       // Reset positions after delay
       this.clock.setTimeout(() => {
@@ -708,8 +793,36 @@ export class SoccerRoom extends Room {
     const duration = this.POWER_UP_TYPES[type].duration
     
     if (type === 'speed') {
-      player.speedMult = 2
-      this.clock.setTimeout(() => player.speedMult = 1, duration)
+      // Smooth speed ramp-up over 0.5 seconds (500ms)
+      const targetSpeed = 2
+      const rampUpTime = 500
+      const rampDownTime = 1000
+      const rampUpSteps = 10
+      const rampDownSteps = 20
+      
+      // Ramp up
+      let currentStep = 0
+      const rampUpInterval = this.clock.setInterval(() => {
+        currentStep++
+        player.speedMult = 1 + (targetSpeed - 1) * (currentStep / rampUpSteps)
+        if (currentStep >= rampUpSteps) {
+          player.speedMult = targetSpeed
+          rampUpInterval.clear()
+        }
+      }, rampUpTime / rampUpSteps)
+      
+      // Schedule ramp down near end of duration
+      this.clock.setTimeout(() => {
+        let downStep = 0
+        const rampDownInterval = this.clock.setInterval(() => {
+          downStep++
+          player.speedMult = targetSpeed - (targetSpeed - 1) * (downStep / rampDownSteps)
+          if (downStep >= rampDownSteps) {
+            player.speedMult = 1
+            rampDownInterval.clear()
+          }
+        }, rampDownTime / rampDownSteps)
+      }, duration - rampDownTime)
     } else if (type === 'jump') {
       player.jumpMult = 1.5
       this.clock.setTimeout(() => player.jumpMult = 1, duration)
@@ -731,12 +844,42 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Radius 1.4 - 10x the new 0.14 base)
-        const giantCollider = RAPIER.ColliderDesc.cuboid(6.0, 4.0, 6.0)
+        // Create GIANT collider (Sphere Radius 2.0 - matches client's 5x scale)
+        const giantCollider = RAPIER.ColliderDesc.ball(2.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
         
+        // SAFETY: Push ball away if it's too close to prevent crushing
+        if (this.ballBody) {
+          const ballPos = this.ballBody.translation()
+          const playerPos = body.translation()
+          const dx = ballPos.x - playerPos.x
+          const dz = ballPos.z - playerPos.z
+          const dist = Math.sqrt(dx * dx + dz * dz)
+          
+          // If ball is within the new giant radius (2.0) + ball radius (0.8) + buffer
+          if (dist < 3.5) {
+            // Calculate push direction
+            let pushX = dx
+            let pushZ = dz
+            if (dist < 0.1) { pushX = 1; pushZ = 0 } // Handle perfect overlap
+            
+            // Normalize
+            const len = Math.sqrt(pushX * pushX + pushZ * pushZ)
+            pushX /= len
+            pushZ /= len
+            
+            // Teleport ball to safety (4.0m away)
+            const safeX = playerPos.x + pushX * 4.0
+            const safeZ = playerPos.z + pushZ * 4.0
+            
+            // Wake up and move
+            this.ballBody.setTranslation({ x: safeX, y: 2, z: safeZ }, true)
+            this.ballBody.setLinvel({ x: pushX * 10, y: 5, z: pushZ * 10 }, true)
+          }
+        }
+
         this.world.createCollider(giantCollider, body)
       }
 
@@ -751,7 +894,7 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(0.6, 0.2, 0.6)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
             .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
