@@ -143,18 +143,15 @@ export class SoccerRoom extends Room {
     const groundDesc = RAPIER.ColliderDesc.cuboid(PHYSICS.ARENA_WIDTH / 2, 0.25, PHYSICS.ARENA_DEPTH / 2)
       .setTranslation(0, -0.25, 0)
       .setFriction(2.0)
-      .setRestitution(0.7)
     this.world.createCollider(groundDesc)
 
     // Back walls (Z axis)
     const backWall1 = RAPIER.ColliderDesc.cuboid((pitchWidth + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2)
       .setTranslation(0, wallHeight / 2, -pitchDepth / 2 - wallThickness / 2)
-      .setRestitution(0.8)
     this.world.createCollider(backWall1)
 
     const backWall2 = RAPIER.ColliderDesc.cuboid((pitchWidth + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2)
       .setTranslation(0, wallHeight / 2, pitchDepth / 2 + wallThickness / 2)
-      .setRestitution(0.8)
     this.world.createCollider(backWall2)
 
     // Side walls with goal gaps
@@ -169,7 +166,6 @@ export class SoccerRoom extends Room {
     sideWallPositions.forEach(([x, z]) => {
       const desc = RAPIER.ColliderDesc.cuboid(wallThickness / 2, wallHeight / 2, sideWallHalfDepth)
         .setTranslation(x, wallHeight / 2, z)
-        .setRestitution(0.8)
       this.world.createCollider(desc)
     })
 
@@ -208,7 +204,6 @@ export class SoccerRoom extends Room {
     // Ceiling
     const ceiling = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.1, pitchDepth / 2)
       .setTranslation(0, wallHeight, 0)
-      .setRestitution(0.8)
     this.world.createCollider(ceiling)
 
     // Goal side barriers (The "Net" sides)
