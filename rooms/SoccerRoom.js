@@ -651,8 +651,8 @@ export class SoccerRoom extends Room {
       // Direct velocity (snappy movement)
            player.vx = player.vx || 0
       player.vz = player.vz || 0
-      player.vx = player.vx + (x * speed - player.vx) * PHYSICS.MOVEMENT_SMOOTHING
-      player.vz = player.vz + (z * speed - player.vz) * PHYSICS.MOVEMENT_SMOOTHING
+      player.vx = player.vx + (x * speed - player.vx) * 0.8
+      player.vz = player.vz + (z * speed - player.vz) * 0.8
 
 
       let newX = currentPos.x + player.vx * deltaTime
@@ -661,14 +661,43 @@ export class SoccerRoom extends Room {
       // Vertical movement
       player.vy = (player.vy || 0) - PHYSICS.GRAVITY * deltaTime
 
+      // Ground check with coyote time tracking
+      const wasOnGround = player.isOnGround || false
       if (currentPos.y <= PHYSICS.GROUND_Y + 0.05 && player.vy <= 0) {
         player.jumpCount = 0
+        player.isOnGround = true
+        player.lastGroundedTick = this.currentTick
+      } else {
+        player.isOnGround = false
       }
 
-      if (jump && !player.prevJump && player.jumpCount < PHYSICS.MAX_JUMPS) {
+      // Coyote Time: Allow jump for COYOTE_TIME after leaving ground
+      // Convert time to ticks (COYOTE_TIME * TICK_RATE)
+      const coyoteTicks = Math.floor(PHYSICS.COYOTE_TIME * PHYSICS.TICK_RATE)
+      const ticksSinceGrounded = this.currentTick - (player.lastGroundedTick || 0)
+      const coyoteActive = ticksSinceGrounded < coyoteTicks
+      const canCoyoteJump = !player.isOnGround && coyoteActive && player.jumpCount === 0
+
+      // Jump Buffer: Track when jump was requested
+      const jumpBufferTicks = Math.floor(PHYSICS.JUMP_BUFFER_TIME * PHYSICS.TICK_RATE)
+      if (jump && !player.prevJump) {
+        player.jumpBufferTick = this.currentTick
+      }
+      const ticksSinceJumpRequest = this.currentTick - (player.jumpBufferTick || -1000)
+      const jumpBuffered = ticksSinceJumpRequest < jumpBufferTicks
+
+      // Determine if we should jump
+      const wantsJump = jump && !player.prevJump
+      const bufferedLanding = jumpBuffered && !wasOnGround && player.isOnGround
+      const shouldJump = (wantsJump || bufferedLanding) && 
+                         (player.isOnGround || canCoyoteJump || player.jumpCount < PHYSICS.MAX_JUMPS)
+
+      if (shouldJump && player.jumpCount < PHYSICS.MAX_JUMPS) {
         const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
         player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
+        player.isOnGround = false
+        player.jumpBufferTick = -1000 // Clear buffer
       }
       player.prevJump = jump
 
@@ -677,6 +706,8 @@ export class SoccerRoom extends Room {
         newY = PHYSICS.GROUND_Y
         player.vy = 0
         player.jumpCount = 0
+        player.isOnGround = true
+        player.lastGroundedTick = this.currentTick
       }
 
       // Bounds
@@ -708,10 +739,39 @@ export class SoccerRoom extends Room {
     // Update ball state from physics
     if (this.ballBody) {
       const pos = this.ballBody.translation()
-      const vel = this.ballBody.linvel()
+      let vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
+      
+      // === ENHANCED BALL PHYSICS ===
+      const speed = Math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
+      const isOnGround = pos.y <= PHYSICS.BALL_RADIUS + 0.05
+      
+      // 1. Air Resistance (quadratic drag) - more drag at higher speeds
+      if (speed > 0.1) {
+        const dragForce = PHYSICS.BALL_AIR_DRAG * speed * speed
+        const dragFactor = 1 - Math.min(0.1, dragForce) // Cap drag effect per tick
+        vel = {
+          x: vel.x * dragFactor,
+          y: vel.y * dragFactor,
+          z: vel.z * dragFactor
+        }
+        this.ballBody.setLinvel(vel, true)
+      }
+      
+      // 2. Ground-Aware Damping
+      // Apply higher damping when ball is rolling on ground
+      if (isOnGround && Math.abs(vel.y) < 1) {
+        const groundDampingFactor = 1 - (PHYSICS.BALL_GROUND_DAMPING * 0.01)
+        this.ballBody.setLinvel({
+          x: vel.x * groundDampingFactor,
+          y: vel.y,
+          z: vel.z * groundDampingFactor
+        }, true)
+        vel = this.ballBody.linvel()
+      }
 
-            this.state.ball.x = pos.x
+      // Sync state
+      this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
@@ -723,8 +783,7 @@ export class SoccerRoom extends Room {
       this.state.ball.rw = rot.w
       this.state.ball.tick = this.currentTick
 
-
-      // Limit angular velocity
+      // Limit angular velocity (prevents crazy spinning)
       const angvel = this.ballBody.angvel()
       const maxAv = 15.0
       const avSq = angvel.x ** 2 + angvel.y ** 2 + angvel.z ** 2
@@ -791,8 +850,36 @@ export class SoccerRoom extends Room {
     const duration = this.POWER_UP_TYPES[type].duration
     
     if (type === 'speed') {
-      player.speedMult = 2
-      this.clock.setTimeout(() => player.speedMult = 1, duration)
+      // Smooth speed ramp-up over 0.5 seconds (500ms)
+      const targetSpeed = 2
+      const rampUpTime = 500
+      const rampDownTime = 1000
+      const rampUpSteps = 10
+      const rampDownSteps = 20
+      
+      // Ramp up
+      let currentStep = 0
+      const rampUpInterval = this.clock.setInterval(() => {
+        currentStep++
+        player.speedMult = 1 + (targetSpeed - 1) * (currentStep / rampUpSteps)
+        if (currentStep >= rampUpSteps) {
+          player.speedMult = targetSpeed
+          rampUpInterval.clear()
+        }
+      }, rampUpTime / rampUpSteps)
+      
+      // Schedule ramp down near end of duration
+      this.clock.setTimeout(() => {
+        let downStep = 0
+        const rampDownInterval = this.clock.setInterval(() => {
+          downStep++
+          player.speedMult = targetSpeed - (targetSpeed - 1) * (downStep / rampDownSteps)
+          if (downStep >= rampDownSteps) {
+            player.speedMult = 1
+            rampDownInterval.clear()
+          }
+        }, rampDownTime / rampDownSteps)
+      }, duration - rampDownTime)
     } else if (type === 'jump') {
       player.jumpMult = 1.5
       this.clock.setTimeout(() => player.jumpMult = 1, duration)
