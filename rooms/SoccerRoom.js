@@ -653,11 +653,21 @@ export class SoccerRoom extends Room {
         })
       
       // Smooth horizontal velocity
-      // Direct velocity (snappy movement)
-           player.vx = player.vx || 0
+      // Instant stop when no input, smooth otherwise
+      player.vx = player.vx || 0
       player.vz = player.vz || 0
-      player.vx = player.vx + (x * speed - player.vx) * 0.8
-      player.vz = player.vz + (z * speed - player.vz) * 0.8
+      
+      if (x === 0 && z === 0) {
+        // Quick deceleration to prevent sliding
+        player.vx *= 0.5
+        player.vz *= 0.5
+        if (Math.abs(player.vx) < 0.01) player.vx = 0
+        if (Math.abs(player.vz) < 0.01) player.vz = 0
+      } else {
+        const smoothing = PHYSICS.VELOCITY_SMOOTHING
+        player.vx = player.vx + (x * speed - player.vx) * smoothing
+        player.vz = player.vz + (z * speed - player.vz) * smoothing
+      }
 
 
       let newX = currentPos.x + player.vx * deltaTime

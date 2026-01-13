@@ -53,4 +53,5 @@ export const PHYSICS = {
   HEAD_RIM_FORCE: 30.0,         // Unbreakable containment (was 8.0)
   HEAD_VELOCITY_MATCH: 0.85,     // Perfect 1:1 movement sync (was 0.85)
   HEAD_DAMPING: 8.0,            // Kill all bounce (was 2.0)
+  VELOCITY_SMOOTHING: 0.95,       // Snappy velocity response (was 0.8)
 }
