@@ -708,6 +708,9 @@ export class SoccerRoom extends Room {
     // 2. Step physics world
     this.world.step()
 
+    // 2.5 Apply head stabilization
+    this.applyHeadStabilization()
+
     // Check goal
     this.checkGoal()
 
@@ -907,6 +910,81 @@ export class SoccerRoom extends Room {
         }
       }, duration)
     }
+  }
+
+  applyHeadStabilization() {
+    if (!this.ballBody) return
+
+    const ballPos = this.ballBody.translation()
+    const ballVel = this.ballBody.linvel()
+    const deltaTime = PHYSICS.FIXED_TIMESTEP
+
+    this.state.players.forEach((player, sessionId) => {
+      const body = this.playerBodies.get(sessionId)
+      if (!body) return
+
+      const playerPos = body.translation()
+      
+      // Check if ball is within the "head zone" cylinder above the player
+      // Horizontal distance
+      const dx = ballPos.x - playerPos.x
+      const dz = ballPos.z - playerPos.z
+      const horizontalDist = Math.sqrt(dx * dx + dz * dz)
+      
+      // Vertical distance (relative to player head height)
+      // Player head is roughly at y = 0.8 (radius 0.4 * 2)
+      // We want the zone to be slightly above that
+      const headTopY = playerPos.y + (player.giant ? 4.0 : 0.8)
+      const dy = ballPos.y - headTopY
+      
+      const zoneRadius = PHYSICS.HEAD_ZONE_RADIUS * (player.giant ? 5.0 : 1.0)
+      const zoneHeight = PHYSICS.HEAD_ZONE_HEIGHT
+      const zoneDepth = PHYSICS.HEAD_ZONE_DEPTH
+
+      // Detection: Ball is above head and within radius
+      if (horizontalDist < zoneRadius && dy > 0 && dy < zoneHeight) {
+        // MATCH VELOCITY
+        // Ball should inherit most of player's horizontal velocity
+        const playerVx = player.vx || 0
+        const playerVz = player.vz || 0
+        
+        const targetVx = playerVx * PHYSICS.HEAD_VELOCITY_MATCH
+        const targetVz = playerVz * PHYSICS.HEAD_VELOCITY_MATCH
+        
+        // Apply velocity matching as a soft correction
+        const vxCorr = (targetVx - ballVel.x) * 0.5
+        const vzCorr = (targetVz - ballVel.z) * 0.5
+        
+        // CENTERING FORCE
+        // Nudge ball toward center of head
+        const centeringFactor = horizontalDist < zoneRadius * 0.5 
+          ? PHYSICS.HEAD_CENTERING_FORCE 
+          : PHYSICS.HEAD_RIM_FORCE
+          
+        const invDist = 1 / Math.max(horizontalDist, 0.01)
+        const nx = -dx * invDist
+        const nz = -dz * invDist
+        
+        const forceX = nx * centeringFactor * horizontalDist
+        const forceZ = nz * centeringFactor * horizontalDist
+        
+        // Apply impulses
+        this.ballBody.applyImpulse({
+          x: (vxCorr + forceX) * deltaTime * PHYSICS.BALL_MASS,
+          y: -dy * PHYSICS.HEAD_DAMPING * deltaTime * PHYSICS.BALL_MASS, // Vertical damping to keep it on head
+          z: (vzCorr + forceZ) * deltaTime * PHYSICS.BALL_MASS
+        }, true)
+
+        // Set ownership to the player who is balancing it
+        if (this.state.ball.ownerSessionId !== sessionId) {
+          this.state.ball.ownerSessionId = sessionId
+          if (this.lastTouchSessionId !== sessionId) {
+            this.secondLastTouchSessionId = this.lastTouchSessionId
+            this.lastTouchSessionId = sessionId
+          }
+        }
+      }
+    })
   }
 
   onDispose() {
