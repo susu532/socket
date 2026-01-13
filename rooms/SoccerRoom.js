@@ -607,8 +607,9 @@ export class SoccerRoom extends Room {
       
       // Smooth horizontal velocity
       // Direct velocity (snappy movement)
-           player.vx = player.vx || 0
-      player.vz = player.vz || 0
+      player.vx = player.vx ?? 0
+      player.vz = player.vz ?? 0
+      player.vy = player.vy ?? 0
       player.vx = player.vx + (x * speed - player.vx) * 0.3
       player.vz = player.vz + (z * speed - player.vz) * 0.3
 
