@@ -5,7 +5,7 @@ export const PHYSICS = {
   
   // Gravity
   GRAVITY: 20,          // For players (manual physics)
-  WORLD_GRAVITY: 14,  // For ball (RAPIER world)
+  WORLD_GRAVITY: 10,  // For ball (RAPIER world)
   
   // Player
   MOVE_SPEED: 8,
@@ -51,7 +51,16 @@ export const PHYSICS = {
   GOAL_DEPTH: 2.0,
   GOAL_LINE_X: 10.8,
 
-  GOAL_LINE_X: 10.8,
+  // Head Stabilization (Bowl Zone)
+  HEAD_ZONE_RADIUS: 0.8,        // Wider bowl (was 0.6)
+  HEAD_ZONE_HEIGHT: 1.2,        // Height above player where zone starts
+  HEAD_ZONE_DEPTH: 0.3,         // How deep the "bowl" is (vertical detection range)
+  HEAD_CENTERING_FORCE: 15.0,   // Strong magnet pull (was 3.0)
+  HEAD_RIM_FORCE: 30.0,         // Unbreakable containment (was 8.0)
+  HEAD_VELOCITY_MATCH: 0.85,     // Perfect 1:1 movement sync (was 0.85)
+  HEAD_DAMPING: 8.0,            // Kill all bounce (was 2.0)
+  VELOCITY_SMOOTHING: 0.95,       // Snappy velocity response (was 0.8)
+  VELOCITY_SMOOTHING_SUB: 0.975,  // Adjusted for 120Hz sub-frames
   
   // Sub-frame Prediction
   SUB_FRAME_RATE: 120,
@@ -82,16 +91,4 @@ export const PHYSICS = {
   // Collision Prediction Tuning
   SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
-  
-  // Ball Visual & Collision Tuning (Refactored from Ball.jsx)
-  BALL_COLLISION_COOLDOWN: 0.004,
-  BALL_BASE_LOOKAHEAD: 0.03,
-  BALL_MAX_LOOKAHEAD: 0.10,
-  BALL_IMPULSE_PREDICTION_FACTOR: 0.9,
-  BALL_LERP_NORMAL: 25,
-  BALL_LERP_COLLISION: 80,
-  BALL_LERP_SNAP_THRESHOLD: 8,
-  BALL_SPECULATIVE_THRESHOLD: 0.5,
-  BALL_KICK_VISUAL_SNAP: 0.95,
-  BALL_MAX_LINEAR_VEL: 50,
 }
