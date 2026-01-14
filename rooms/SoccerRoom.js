@@ -716,9 +716,65 @@ export class SoccerRoom extends Room {
 
 
 
-    // 2. Step physics world
-    this.world.step()
-
+    // 2. Step physics world with sub-stepping for higher precision
+    const SUB_STEPS = 2
+    for (let i = 0; i < SUB_STEPS; i++) {
+      this.world.step()
+      
+      // Manual ball-player collision correction (backup for CCD)
+      if (this.ballBody) {
+        const ballPos = this.ballBody.translation()
+        const ballVel = this.ballBody.linvel()
+        
+        this.state.players.forEach((player, sessionId) => {
+          const body = this.playerBodies.get(sessionId)
+          if (!body) return
+          
+          const playerPos = body.translation()
+          const giantScale = player.giant ? 5 : 1
+          const combinedRadius = PHYSICS.BALL_RADIUS + (PHYSICS.PLAYER_RADIUS * giantScale)
+          
+          const dx = ballPos.x - playerPos.x
+          const dy = ballPos.y - (playerPos.y + PHYSICS.PLAYER_RADIUS)
+          const dz = ballPos.z - playerPos.z
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+          
+          // Overlap correction
+          if (dist < combinedRadius && dist > 0.01) {
+            const overlap = combinedRadius - dist + 0.05
+            const invD = 1 / dist
+            const nx = dx * invD
+            const ny = dy * invD
+            const nz = dz * invD
+            
+            // Push ball out
+            this.ballBody.setTranslation({
+              x: ballPos.x + nx * overlap,
+              y: ballPos.y + ny * overlap,
+              z: ballPos.z + nz * overlap
+            }, true)
+            
+            // Apply bounce impulse if approaching
+            const approachSpeed = ballVel.x * nx + ballVel.y * ny + ballVel.z * nz
+            if (approachSpeed < 0) {
+              const impulseMag = -(1 + PHYSICS.BALL_RESTITUTION) * approachSpeed * 1.5
+              this.ballBody.applyImpulse({
+                x: impulseMag * nx,
+                y: impulseMag * ny + 0.5,
+                z: impulseMag * nz
+              }, true)
+              
+              // Update touch tracking
+              if (this.lastTouchSessionId !== sessionId) {
+                this.secondLastTouchSessionId = this.lastTouchSessionId
+                this.lastTouchSessionId = sessionId
+              }
+              this.state.ball.ownerSessionId = sessionId
+            }
+          }
+        })
+      }
+    }
 
     // Check goal
     this.checkGoal()
