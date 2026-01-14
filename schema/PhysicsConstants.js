@@ -87,7 +87,7 @@ export const PHYSICS = {
   // Professional Touch Response
   FIRST_TOUCH_SNAP_FACTOR: 0.92,      // Near-instant visual snap on first contact
   COLLISION_CONFIDENCE_BOOST: 1.8,    // Increase impulse confidence weighting
-  TOUCH_VELOCITY_TRANSFER: 0.85,      // Aggressive player velocity transfer
+  TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
   MICRO_COLLISION_THRESHOLD: 0.008,   // 8ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
@@ -102,8 +102,8 @@ export const PHYSICS = {
   RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 
   // Phase 22-26: Advanced Collision Refinement
-  COLLISION_SUBDIVISIONS: 8,
-  COLLISION_SUBDIVISION_THRESHOLD: 1.0,
+  COLLISION_SUBDIVISIONS: 4,
+  COLLISION_SUBDIVISION_THRESHOLD: 0.5,
   HERMITE_TENSION: 0.0,
   IMPULSE_RAMP_FRAMES: 3,
   COLLISION_ANGLE_FACTOR: 0.8,
