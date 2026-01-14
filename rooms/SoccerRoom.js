@@ -4,7 +4,7 @@ import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
 import { PHYSICS } from '../schema/PhysicsConstants.js'
 
-const PHYSICS_TICK_RATE = 1000 / PHYSICS.TICK_RATE 
+const PHYSICS_TICK_RATE = 1000 / 120  // 120Hz for sub-frame precision
 const GOAL_COOLDOWN = PHYSICS.GOAL_COOLDOWN
 const EMPTY_DISPOSE_DELAY = PHYSICS.EMPTY_DISPOSE_DELAY
 
@@ -745,6 +745,7 @@ export class SoccerRoom extends Room {
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
       this.state.ball.tick = this.currentTick
+      this.state.ball.serverTime = Date.now() // For client interpolation
 
 
       // Limit angular velocity

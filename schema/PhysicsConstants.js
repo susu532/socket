@@ -103,4 +103,17 @@ export const PHYSICS = {
   // Room / Game Logic
   GOAL_COOLDOWN: 5000,            // 5 seconds
   EMPTY_DISPOSE_DELAY: 30000,     // 30 seconds
+
+  // S-Tier Netcode
+  PHYSICS_RATE: 120,              // 120Hz physics (was 60)
+  PHYSICS_TIMESTEP: 1 / 120,
+  STATE_BUFFER_SIZE: 10,          // 10 frames of state history
+  ROLLBACK_THRESHOLD: 0.5,        // Position divergence to trigger rollback
+  HERMITE_TENSION: 0.5,           // Spline tension for smooth curves
+  INPUT_AUTHORITY_WINDOW: 0.1,    // 100ms window for local kick priority
+
+  // Enhanced Head Stabilization
+  HEAD_LOOKAHEAD_TIME: 0.033,     // 2 frames lookahead for head zone
+  HEAD_STICKY_THRESHOLD: 0.3,     // Distance to enter "sticky" mode
+  HEAD_STICKY_FORCE: 40.0,        // Strong pull in sticky mode
 }
