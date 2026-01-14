@@ -82,4 +82,16 @@ export const PHYSICS = {
   // Collision Prediction Tuning
   SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
+  
+  // Ball Visual & Collision Tuning (Refactored from Ball.jsx)
+  BALL_COLLISION_COOLDOWN: 0.004,
+  BALL_BASE_LOOKAHEAD: 0.03,
+  BALL_MAX_LOOKAHEAD: 0.10,
+  BALL_IMPULSE_PREDICTION_FACTOR: 0.9,
+  BALL_LERP_NORMAL: 25,
+  BALL_LERP_COLLISION: 80,
+  BALL_LERP_SNAP_THRESHOLD: 8,
+  BALL_SPECULATIVE_THRESHOLD: 0.5,
+  BALL_KICK_VISUAL_SNAP: 0.95,
+  BALL_MAX_LINEAR_VEL: 50,
 }
