@@ -83,4 +83,16 @@ export const PHYSICS = {
   // Collision Prediction Tuning
   SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
+
+  // Professional Touch Response
+  FIRST_TOUCH_SNAP_FACTOR: 0.92,      // Near-instant visual snap on first contact
+  COLLISION_CONFIDENCE_BOOST: 1.8,    // Increase impulse confidence weighting
+  TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
+  MICRO_COLLISION_THRESHOLD: 0.008,   // 8ms threshold for micro-collision timing
+
+  // Reconciliation Smoothness
+  HERMITE_BLEND_RANGE_MIN: 0.5,
+  HERMITE_BLEND_RANGE_MAX: 2.0,
+  VELOCITY_FADEOUT_RATE: 0.85,
+  HEAD_STABILIZATION_LAMBDA: 40,      // Damping for head height stability
 }
