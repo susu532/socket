@@ -92,17 +92,7 @@ export const PHYSICS = {
   SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
-  // Ball Prediction Thresholds
-  MAX_BALL_VELOCITY: 50,          // Max linear velocity clamp
-  PANIC_SNAP_THRESHOLD: 8.0,      // Distance to panic snap
-  FAST_CORRECTION_THRESHOLD: 2.0, // Distance for fast correction
-
-  // Power-up
-  POWERUP_COLLECT_RADIUS: 1.5,    // Radius for power-up collection
-
   // Room / Game Logic
-  GOAL_COOLDOWN: 5000,            // 5 seconds
-  EMPTY_DISPOSE_DELAY: 30000,     // 30 seconds
 
   // S-Tier Netcode
   PHYSICS_RATE: 120,              // 120Hz physics (was 60)
