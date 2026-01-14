@@ -5,8 +5,8 @@ import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomReg
 import { PHYSICS } from '../schema/PhysicsConstants.js'
 
 const PHYSICS_TICK_RATE = 1000 / PHYSICS.TICK_RATE 
-const GOAL_COOLDOWN = 5000          // 5 seconds
-const EMPTY_DISPOSE_DELAY = 30000   // 30 seconds
+const GOAL_COOLDOWN = PHYSICS.GOAL_COOLDOWN
+const EMPTY_DISPOSE_DELAY = PHYSICS.EMPTY_DISPOSE_DELAY
 
 export class SoccerRoom extends Room {
   maxClients = 4
@@ -386,6 +386,10 @@ export class SoccerRoom extends Room {
 
     // Helper to process a single input
     const processInput = (input) => {
+      // Reject stale inputs (>2 seconds old) to prevent replay attacks
+      const now = Date.now()
+      if (input.timestamp && now - input.timestamp > 2000) return
+
       // Deduplicate: Only accept newer inputs
       if (input.tick > player.lastReceivedTick) {
         player.inputQueue.push(input)
@@ -645,7 +649,7 @@ export class SoccerRoom extends Room {
           const dz = currentPos.z - p.z
           const dist = Math.sqrt(dx * dx + dz * dz)
           
-          if (dist < 1.5) {
+          if (dist < PHYSICS.POWERUP_COLLECT_RADIUS) {
             this.applyPowerUp(player, p.type)
             this.state.powerUps.delete(id)
             this.broadcast('powerup-collected', { sessionId, type: p.type })
@@ -911,8 +915,8 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
-            .setTranslation(0, 0.2, 0)
+          const normalCollider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
+            .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
           

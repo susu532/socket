@@ -55,10 +55,10 @@ export const PHYSICS = {
   HEAD_ZONE_RADIUS: 0.8,        // Wider bowl (was 0.6)
   HEAD_ZONE_HEIGHT: 1.2,        // Height above player where zone starts
   HEAD_ZONE_DEPTH: 0.3,         // How deep the "bowl" is (vertical detection range)
-  HEAD_CENTERING_FORCE: 15.0,   // Strong magnet pull (was 3.0)
-  HEAD_RIM_FORCE: 30.0,         // Unbreakable containment (was 8.0)
-  HEAD_VELOCITY_MATCH: 0.85,     // Perfect 1:1 movement sync (was 0.85)
-  HEAD_DAMPING: 8.0,            // Kill all bounce (was 2.0)
+  HEAD_CENTERING_FORCE: 25.0,   // Stronger magnet pull (was 15.0)
+  HEAD_RIM_FORCE: 50.0,         // Unbreakable containment (was 30.0)
+  HEAD_VELOCITY_MATCH: 0.95,     // Near-perfect movement sync (was 0.85)
+  HEAD_DAMPING: 12.0,            // Increased vertical stability (was 8.0)
   VELOCITY_SMOOTHING: 0.95,       // Snappy velocity response (was 0.8)
   VELOCITY_SMOOTHING_SUB: 0.975,  // Adjusted for 120Hz sub-frames
   
@@ -91,4 +91,16 @@ export const PHYSICS = {
   // Collision Prediction Tuning
   SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
+
+  // Ball Prediction Thresholds
+  MAX_BALL_VELOCITY: 50,          // Max linear velocity clamp
+  PANIC_SNAP_THRESHOLD: 8.0,      // Distance to panic snap
+  FAST_CORRECTION_THRESHOLD: 2.0, // Distance for fast correction
+
+  // Power-up
+  POWERUP_COLLECT_RADIUS: 1.5,    // Radius for power-up collection
+
+  // Room / Game Logic
+  GOAL_COOLDOWN: 5000,            // 5 seconds
+  EMPTY_DISPOSE_DELAY: 30000,     // 30 seconds
 }
