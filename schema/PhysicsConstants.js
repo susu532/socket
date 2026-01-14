@@ -51,14 +51,6 @@ export const PHYSICS = {
   GOAL_DEPTH: 2.0,
   GOAL_LINE_X: 10.8,
 
-  // Head Stabilization (Bowl Zone)
-  HEAD_ZONE_RADIUS: 0.8,        // Wider bowl (was 0.6)
-  HEAD_ZONE_HEIGHT: 1.2,        // Height above player where zone starts
-  HEAD_ZONE_DEPTH: 0.3,         // How deep the "bowl" is (vertical detection range)
-  HEAD_CENTERING_FORCE: 25.0,   // Stronger magnet pull (was 15.0)
-  HEAD_RIM_FORCE: 50.0,         // Unbreakable containment (was 30.0)
-  HEAD_VELOCITY_MATCH: 0.95,     // Near-perfect movement sync (was 0.85)
-  HEAD_DAMPING: 12.0,            // Increased vertical stability (was 8.0)
   VELOCITY_SMOOTHING: 0.95,       // Snappy velocity response (was 0.8)
   VELOCITY_SMOOTHING_SUB: 0.975,  // Adjusted for 120Hz sub-frames
   
@@ -91,19 +83,4 @@ export const PHYSICS = {
   // Collision Prediction Tuning
   SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
-
-  // Room / Game Logic
-
-  // S-Tier Netcode
-  PHYSICS_RATE: 120,              // 120Hz physics (was 60)
-  PHYSICS_TIMESTEP: 1 / 120,
-  STATE_BUFFER_SIZE: 10,          // 10 frames of state history
-  ROLLBACK_THRESHOLD: 0.5,        // Position divergence to trigger rollback
-  HERMITE_TENSION: 0.5,           // Spline tension for smooth curves
-  INPUT_AUTHORITY_WINDOW: 0.1,    // 100ms window for local kick priority
-
-  // Enhanced Head Stabilization
-  HEAD_LOOKAHEAD_TIME: 0.033,     // 2 frames lookahead for head zone
-  HEAD_STICKY_THRESHOLD: 0.3,     // Distance to enter "sticky" mode
-  HEAD_STICKY_FORCE: 40.0,        // Strong pull in sticky mode
 }
