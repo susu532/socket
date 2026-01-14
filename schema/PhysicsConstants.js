@@ -95,4 +95,9 @@ export const PHYSICS = {
   HERMITE_BLEND_RANGE_MAX: 2.0,
   VELOCITY_FADEOUT_RATE: 0.85,
   HEAD_STABILIZATION_LAMBDA: 40,      // Damping for head height stability
+
+  // Adaptive Error Thresholds
+  RECONCILE_BASE_THRESHOLD: 0.15,
+  RECONCILE_ACTION_THRESHOLD: 0.4,    // After kicks/collisions
+  RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 }
