@@ -116,7 +116,7 @@ export const PHYSICS = {
   BALL_SPIN_TRANSFER: 0.3,
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
-  
+
   // Phase 48: Gold Standard Netcode 🏆
   LAG_COMPENSATION_HISTORY_MS: 1000,  // 1 second of history for rewind
   LAG_COMPENSATION_MAX_LAG: 400,      // Max lag to compensate for (400ms)
