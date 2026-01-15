@@ -422,7 +422,12 @@ export class SoccerRoom extends Room {
     // We use the client's timestamp (data.timestamp) to find where they were
     // But we clamp it to a reasonable window to prevent cheating
     const now = Date.now()
-    const clientTime = data.timestamp || now
+    
+    // Convert client performance.now() to server Date.now() scale
+    if (!player.clientTimeOffset) {
+      player.clientTimeOffset = now - (data.timestamp || 0)
+    }
+    const clientTime = data.timestamp ? data.timestamp + player.clientTimeOffset : now
     const lag = Math.min(now - clientTime, PHYSICS.LAG_COMPENSATION_MAX_LAG)
     const rewindTime = now - lag
     
@@ -465,6 +470,9 @@ export class SoccerRoom extends Room {
         y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, 
         z: impulseZ 
       }, true)
+
+      // Store kick time for grace period
+      player.lastKickTime = Date.now()
 
       // Broadcast kick visual to all clients with impulse for prediction
       this.broadcast('ball-kicked', { 
@@ -670,8 +678,6 @@ export class SoccerRoom extends Room {
     this.currentTick++
     this.state.currentTick = this.currentTick
 
-    // Phase 28: Server Collision Event Broadcasting
-    this.detectBallPlayerCollisions()
 
       // 1. Update players from Input Queue
       this.state.players.forEach((player, sessionId) => {
@@ -813,6 +819,8 @@ export class SoccerRoom extends Room {
     // 2. Step physics world
     this.world.step()
 
+    // Phase 28: Server Collision Event Broadcasting (AFTER physics step)
+    this.detectBallPlayerCollisions()
 
     // Check goal
     this.checkGoal()
@@ -1042,6 +1050,9 @@ export class SoccerRoom extends Room {
 
       // Check for collision
       if (dist < combinedRadius) {
+        // Skip collision during kick grace period (50ms)
+        if (player.lastKickTime && now - player.lastKickTime < 50) return
+
         // Phase 58: Reduced cooldown (50ms) for faster collision feedback 🔥
         if (player.lastBallContactTime && now - player.lastBallContactTime < 50) return
 
