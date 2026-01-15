@@ -56,8 +56,8 @@ export const PHYSICS = {
   VELOCITY_SMOOTHING_SUB: 0.975,  // Adjusted for 120Hz sub-frames
   
   // Sub-frame Prediction
-  SUB_FRAME_RATE: 120,
-  SUB_FRAME_TIMESTEP: 1 / 120,
+  SUB_FRAME_RATE: 240,
+  SUB_FRAME_TIMESTEP: 1 / 240,
   INPUT_PREDICTION_LOOKAHEAD: 0.033, // 2 frames @ 60Hz
   
   // Aggressive Visual Smoothing
@@ -82,7 +82,8 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
+  SWEEP_SUBSTEPS: 8,                  // Increased for 240Hz precision
+  CCD_ITERATIONS: 4,                  // Max CCD iterations per frame
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
@@ -94,6 +95,7 @@ export const PHYSICS = {
   // Reconciliation Smoothness
   HERMITE_BLEND_RANGE_MIN: 0.5,
   HERMITE_BLEND_RANGE_MAX: 2.0,
+  HERMITE_SMOOTHING_TENSION: 0.5,     // Catmull-Rom style tension
   VELOCITY_FADEOUT_RATE: 0.85,
   HEAD_STABILIZATION_LAMBDA: 40,      // Damping for head height stability
 
@@ -110,8 +112,6 @@ export const PHYSICS = {
   COLLISION_ANGLE_FACTOR: 0.8,
   
   // Phase 30: Angular Momentum (Spin)
-  BALL_SPIN_TRANSFER: 0.3,
-  BALL_SPIN_DECAY: 0.98,
   BALL_SPIN_TRANSFER: 0.3,
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
