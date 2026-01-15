@@ -36,11 +36,13 @@ export const PHYSICS = {
   WALL_THICKNESS: 2,
   
   // Mechanics
-  KICK_RANGE: 2.0,
-  KICK_POWER: 50,
+    KICK_RANGE: 3.0,
+  KICK_POWER: 65,
+
   KICK_COOLDOWN: 0.2,
-  SPECULATIVE_IMPULSE_FACTOR: 0.7,
-  KICK_VERTICAL_BOOST: 0.5,
+   SPECULATIVE_IMPULSE_FACTOR: 0.85,
+  KICK_VERTICAL_BOOST: 0.8,
+
   
   // Arena
   ARENA_WIDTH: 30,
@@ -120,6 +122,8 @@ export const PHYSICS = {
   // Phase 48: Gold Standard Netcode 🏆
   LAG_COMPENSATION_HISTORY_MS: 1000,  // 1 second of history for rewind
   LAG_COMPENSATION_MAX_LAG: 400,      // Max lag to compensate for (400ms)
+  LAG_COMPENSATION_BALL_HISTORY_MS: 1000,
+  TOUCH_VALIDATION_MARGIN: 0.5,       // 0.5m leeway for latency/jitter
   
   // RK4 Physics
   RK4_ENABLED: true,

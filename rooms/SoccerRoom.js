@@ -26,6 +26,7 @@ export class SoccerRoom extends Room {
   // Lag Compensation History
   // Map<sessionId, Array<{ tick, x, y, z, rotY, timestamp }>>
   playerHistory = new Map()
+  ballHistory = []
 
   // Timers
   lastGoalTime = 0
@@ -50,7 +51,7 @@ export class SoccerRoom extends Room {
     await RAPIER.init()
     this.setState(new GameState())
     
-    // Set patch rate to 30Hz (33ms) to reduce bandwidth usage
+    // Set patch rate to 60Hz (16ms) for smoother network updates
     this.setPatchRate(16)
 
 
@@ -100,6 +101,7 @@ export class SoccerRoom extends Room {
     this.onMessage('start-game', (client) => this.handleStartGame(client))
     this.onMessage('end-game', (client) => this.handleEndGame(client))
     this.onMessage('update-state', (client, data) => this.handleUpdateState(client, data))
+    this.onMessage('touch', (client, data) => this.handleTouch(client, data))
     this.onMessage('ping', (client) => {
       client.send('pong', {})
     })
@@ -513,6 +515,118 @@ export class SoccerRoom extends Room {
     }
   }
 
+  handleTouch(client, data) {
+    const player = this.state.players.get(client.sessionId)
+    const body = this.playerBodies.get(client.sessionId)
+    if (!player || !body || !this.ballBody) return
+
+    const now = Date.now()
+    const clientTime = data.timestamp || now
+    const lag = Math.min(now - clientTime, PHYSICS.LAG_COMPENSATION_MAX_LAG)
+    const rewindTime = now - lag
+
+    // 1. Find ball state at rewindTime
+    let ballState = null
+    if (this.ballHistory.length > 0) {
+      let i = this.ballHistory.length - 1
+      while (i > 0 && this.ballHistory[i].timestamp > rewindTime) {
+        i--
+      }
+      const s0 = this.ballHistory[i]
+      const s1 = this.ballHistory[i + 1]
+      
+      if (s0 && s1) {
+        const t = (rewindTime - s0.timestamp) / (s1.timestamp - s0.timestamp)
+        const clampedT = Math.max(0, Math.min(1, t))
+        ballState = {
+          x: s0.x + (s1.x - s0.x) * clampedT,
+          y: s0.y + (s1.y - s0.y) * clampedT,
+          z: s0.z + (s1.z - s0.z) * clampedT,
+          vx: s0.vx + (s1.vx - s0.vx) * clampedT,
+          vy: s0.vy + (s1.vy - s0.vy) * clampedT,
+          vz: s0.vz + (s1.vz - s0.vz) * clampedT
+        }
+      } else if (s0) {
+        ballState = s0
+      }
+    }
+
+    if (!ballState) return
+
+    // 2. Rewind player
+    const originalPos = body.translation()
+    this.rewindPlayer(client.sessionId, rewindTime)
+    const playerPos = body.translation()
+
+    // 3. Verify collision
+    const dx = ballState.x - playerPos.x
+    const dy = ballState.y - playerPos.y
+    const dz = ballState.z - playerPos.z
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    const combinedRadius = PHYSICS.BALL_RADIUS + PHYSICS.PLAYER_RADIUS
+
+    if (dist < combinedRadius + PHYSICS.TOUCH_VALIDATION_MARGIN) {
+      // VALID TOUCH
+      // Apply impulse/velocity change
+      // We use the normal from the rewound state
+      const nx = dx / dist
+      const ny = dy / dist
+      const nz = dz / dist
+
+      // Calculate relative velocity
+      // Note: Kinematic players don't have velocity in RAPIER easily, 
+      // but we have it in our state
+      const pVel = { x: player.vx || 0, y: player.vy || 0, z: player.vz || 0 }
+      const relVel = {
+        x: ballState.vx - pVel.x,
+        y: ballState.vy - pVel.y,
+        z: ballState.vz - pVel.z
+      }
+
+      const approachSpeed = -(relVel.x * nx + relVel.y * ny + relVel.z * nz)
+
+      if (approachSpeed > 0) {
+        const restitution = 1 + PHYSICS.BALL_RESTITUTION
+        const j = approachSpeed * restitution
+        
+        const boost = player.giant ? 2.0 : 1.2
+        const impulse = {
+          x: nx * j * boost,
+          y: ny * j * boost,
+          z: nz * j * boost
+        }
+
+        // Apply to ball (authoritative)
+        this.ballBody.applyImpulse(impulse, true)
+        
+        // Velocity Transfer
+        const currentVel = this.ballBody.linvel()
+        this.ballBody.setLinvel({
+          x: currentVel.x + pVel.x * PHYSICS.TOUCH_VELOCITY_TRANSFER,
+          y: currentVel.y + pVel.y * PHYSICS.TOUCH_VELOCITY_TRANSFER,
+          z: currentVel.z + pVel.z * PHYSICS.TOUCH_VELOCITY_TRANSFER
+        }, true)
+
+        // Broadcast contact to all (confirms to client)
+        this.broadcast('ball-contact', {
+          sessionId: client.sessionId,
+          position: { x: ballState.x, y: ballState.y, z: ballState.z },
+          normal: { x: nx, y: ny, z: nz },
+          velocity: this.ballBody.linvel()
+        })
+
+        this.state.ball.ownerSessionId = client.sessionId
+        if (this.lastTouchSessionId !== client.sessionId) {
+          this.secondLastTouchSessionId = this.lastTouchSessionId
+          this.lastTouchSessionId = client.sessionId
+        }
+      }
+    }
+
+    // 4. Restore player
+    this.restorePlayer(client.sessionId, originalPos)
+  }
+
 
   handleJoinTeam(client, data) {
     const player = this.state.players.get(client.sessionId)
@@ -828,6 +942,18 @@ export class SoccerRoom extends Room {
       if (avSq > maxAv ** 2) {
         const scale = maxAv / Math.sqrt(avSq)
         this.ballBody.setAngvel({ x: angvel.x * scale, y: angvel.y * scale, z: angvel.z * scale }, true)
+      }
+
+      // Record History for Lag Compensation
+      this.ballHistory.push({
+        timestamp: Date.now(),
+        x: pos.x, y: pos.y, z: pos.z,
+        vx: vel.x, vy: vel.y, vz: vel.z
+      })
+      
+      const ballCutoff = Date.now() - PHYSICS.LAG_COMPENSATION_BALL_HISTORY_MS
+      while (this.ballHistory.length > 0 && this.ballHistory[0].timestamp < ballCutoff) {
+        this.ballHistory.shift()
       }
     }
   }
