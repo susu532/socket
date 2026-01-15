@@ -63,7 +63,8 @@ export const PHYSICS = {
   // Aggressive Visual Smoothing
   VISUAL_LAMBDA_MIN: 30,          // Snappier base response
   VISUAL_LAMBDA_MAX: 50,          // Faster at speed
-  VISUAL_OFFSET_DECAY: 0.35,      // Faster correction hiding
+  VISUAL_OFFSET_DECAY_MIN: 2.5,   // Slow decay for large offsets (smooth)
+  VISUAL_OFFSET_DECAY_MAX: 5.0,   // Fast decay for small offsets (responsive)
   
   // Latency Compensation
   MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
