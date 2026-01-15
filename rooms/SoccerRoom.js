@@ -433,7 +433,31 @@ export class SoccerRoom extends Room {
     this.rewindPlayer(client.sessionId, rewindTime)
     
     const playerPos = body.translation()
-    const ballPos = this.ballBody.translation()
+    
+    // LAG COMPENSATED BALL POSITION
+    // Find ball state at rewindTime
+    let ballPos = this.ballBody.translation() // Default to current
+    
+    if (this.ballHistory.length > 0) {
+      let i = this.ballHistory.length - 1
+      while (i > 0 && this.ballHistory[i].timestamp > rewindTime) {
+        i--
+      }
+      const s0 = this.ballHistory[i]
+      const s1 = this.ballHistory[i + 1]
+      
+      if (s0 && s1) {
+        const t = (rewindTime - s0.timestamp) / (s1.timestamp - s0.timestamp)
+        const clampedT = Math.max(0, Math.min(1, t))
+        ballPos = {
+          x: s0.x + (s1.x - s0.x) * clampedT,
+          y: s0.y + (s1.y - s0.y) * clampedT,
+          z: s0.z + (s1.z - s0.z) * clampedT
+        }
+      } else if (s0) {
+        ballPos = s0
+      }
+    }
 
     // Distance check
     const dx = ballPos.x - playerPos.x
@@ -620,6 +644,9 @@ export class SoccerRoom extends Room {
           this.secondLastTouchSessionId = this.lastTouchSessionId
           this.lastTouchSessionId = client.sessionId
         }
+        
+        // Prevent duplicate broadcast from physics loop
+        player.lastBallContactTime = now
       }
     }
 
