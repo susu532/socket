@@ -431,7 +431,7 @@ export class SoccerRoom extends Room {
       // Note: impulse is already scaled by kickMult from client
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, 
+        y: impulseY + PHYSICS.KICK_VERTICAL_BOOST, // Base vertical boost (not scaled by kickMult again)
         z: impulseZ 
       }, true)
 
@@ -913,8 +913,8 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
-            .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
+            .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
           
