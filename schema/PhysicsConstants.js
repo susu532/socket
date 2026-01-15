@@ -36,13 +36,11 @@ export const PHYSICS = {
   WALL_THICKNESS: 2,
   
   // Mechanics
-    KICK_RANGE: 3.0,
+  KICK_RANGE: 3.0,
   KICK_POWER: 65,
-
   KICK_COOLDOWN: 0.2,
-   SPECULATIVE_IMPULSE_FACTOR: 0.85,
+  SPECULATIVE_IMPULSE_FACTOR: 0.85,
   KICK_VERTICAL_BOOST: 0.8,
-
   
   // Arena
   ARENA_WIDTH: 30,
@@ -65,8 +63,7 @@ export const PHYSICS = {
   // Aggressive Visual Smoothing
   VISUAL_LAMBDA_MIN: 30,          // Snappier base response
   VISUAL_LAMBDA_MAX: 50,          // Faster at speed
-  VISUAL_OFFSET_DECAY_MIN: 2.5,   // Slow decay for large offsets (smooth)
-  VISUAL_OFFSET_DECAY_MAX: 5.0,   // Fast decay for small offsets (responsive)
+  VISUAL_OFFSET_DECAY: 0.35,      // Faster correction hiding
   
   // Latency Compensation
   MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
@@ -85,8 +82,8 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 32,                 // Increased for 240Hz precision (Anti-Tunneling)
-  CCD_ITERATIONS: 8,                  // Max CCD iterations per frame
+  SWEEP_SUBSTEPS: 8,                  // Increased for 240Hz precision
+  CCD_ITERATIONS: 4,                  // Max CCD iterations per frame
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
@@ -118,23 +115,5 @@ export const PHYSICS = {
   BALL_SPIN_TRANSFER: 0.3,
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
-
-  // Phase 48: Gold Standard Netcode 🏆
-  LAG_COMPENSATION_HISTORY_MS: 1000,  // 1 second of history for rewind
-  LAG_COMPENSATION_MAX_LAG: 400,      // Max lag to compensate for (400ms)
-  LAG_COMPENSATION_BALL_HISTORY_MS: 1000,
-  TOUCH_VALIDATION_MARGIN: 0.5,       // 0.5m leeway for latency/jitter
   
-  // RK4 Physics
-  RK4_ENABLED: true,
-  
-  // Dynamic Hermite Tension
-  HERMITE_TENSION_AIR: 0.5,           // Smooth arcs
-  HERMITE_TENSION_BOUNCE: 0.0,        // Sharp bounces
-  HERMITE_TENSION_ADAPT_SPEED: 10.0,  // Speed of tension adaptation
-
-  // Phase 49: Hyper-Polished Collision 💎
-  EXTRAPOLATION_MAX_MS: 150,          // Max extrapolation time for remote players
-  HIT_STOP_DURATION_MS: 40,           // 40ms freeze on heavy impact
-  HIT_STOP_THRESHOLD: 15.0,           // Velocity threshold for hit stop
 }
