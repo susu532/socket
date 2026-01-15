@@ -39,9 +39,8 @@ export const PHYSICS = {
   KICK_RANGE: 3.0,
   KICK_POWER: 65,
   KICK_COOLDOWN: 0.2,
-  SPECULATIVE_IMPULSE_FACTOR: 1.0,  // No dampening - trust prediction fully
+  SPECULATIVE_IMPULSE_FACTOR: 0.85,
   KICK_VERTICAL_BOOST: 0.8,
-  KICK_COLLISION_SUPPRESS_MS: 100,  // Time to suppress collision after kick
   
   // Arena
   ARENA_WIDTH: 30,
