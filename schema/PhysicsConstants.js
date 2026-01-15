@@ -36,7 +36,7 @@ export const PHYSICS = {
   WALL_THICKNESS: 2,
   
   // Mechanics
-  KICK_RANGE: 3.5,
+  KICK_RANGE: 3.0,
   KICK_POWER: 65,
   KICK_COOLDOWN: 0.2,
   SPECULATIVE_IMPULSE_FACTOR: 0.85,
