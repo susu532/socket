@@ -107,4 +107,9 @@ export const PHYSICS = {
   HERMITE_TENSION: 0.0,
   IMPULSE_RAMP_FRAMES: 3,
   COLLISION_ANGLE_FACTOR: 0.8,
+  
+  // Phase 30: Angular Momentum (Spin)
+  BALL_SPIN_TRANSFER: 0.3,
+  BALL_SPIN_DECAY: 0.98,
+  MAX_SPIN_RATE: 20,
 }

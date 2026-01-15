@@ -599,6 +599,9 @@ export class SoccerRoom extends Room {
     this.currentTick++
     this.state.currentTick = this.currentTick
 
+    // Phase 28: Server Collision Event Broadcasting
+    this.detectBallPlayerCollisions()
+
       // 1. Update players from Input Queue
       this.state.players.forEach((player, sessionId) => {
         const body = this.playerBodies.get(sessionId)
@@ -926,5 +929,57 @@ export class SoccerRoom extends Room {
     console.log('SoccerRoom disposed')
     if (this.timerInterval) this.timerInterval.clear()
     if (this.powerUpInterval) this.powerUpInterval.clear()
+  }
+
+  detectBallPlayerCollisions() {
+    if (!this.ballBody) return
+
+    const ballPos = this.ballBody.translation()
+    const ballVel = this.ballBody.linvel()
+    const now = Date.now()
+
+    this.state.players.forEach((player, sessionId) => {
+      const body = this.playerBodies.get(sessionId)
+      if (!body) return
+
+      const playerPos = body.translation()
+      const dx = ballPos.x - playerPos.x
+      const dy = ballPos.y - playerPos.y
+      const dz = ballPos.z - playerPos.z
+      const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+      const combinedRadius = PHYSICS.BALL_RADIUS + PHYSICS.PLAYER_RADIUS
+
+      // Check for collision
+      if (dist < combinedRadius) {
+        // Cooldown check (100ms) to prevent spam
+        if (player.lastBallContactTime && now - player.lastBallContactTime < 100) return
+
+        player.lastBallContactTime = now
+
+        // Calculate collision normal
+        const nx = dx / dist
+        const ny = dy / dist
+        const nz = dz / dist
+
+        // Estimate impulse (simplified)
+        // We don't change physics here (RAPIER handles it), we just notify clients
+        // so they can play sounds/effects or correct their prediction
+        this.broadcast('ball-contact', {
+          sessionId,
+          position: { x: ballPos.x, y: ballPos.y, z: ballPos.z },
+          normal: { x: nx, y: ny, z: nz },
+          velocity: { x: ballVel.x, y: ballVel.y, z: ballVel.z }
+        })
+        
+        // Update ownership if significant contact
+        this.state.ball.ownerSessionId = sessionId
+        
+        // Update touch stats
+        if (this.lastTouchSessionId !== sessionId) {
+          this.secondLastTouchSessionId = this.lastTouchSessionId
+          this.lastTouchSessionId = sessionId
+        }
+      }
+    })
   }
 }
