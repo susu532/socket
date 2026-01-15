@@ -116,11 +116,4 @@ export const PHYSICS = {
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
   
-  // Phase 34: Curve Ball
-  MAGNUS_COEFFICIENT: 0.02,
-  
-  // Phase 35: Dribbling
-  DRIBBLE_SPEED_THRESHOLD: 3,
-  DRIBBLE_DISTANCE: 1.5,
-  DRIBBLE_STICKY_FACTOR: 0.6,
 }
