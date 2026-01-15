@@ -61,14 +61,15 @@ export const PHYSICS = {
   INPUT_PREDICTION_LOOKAHEAD: 0.033, // 2 frames @ 60Hz
   
   // Aggressive Visual Smoothing
-  VISUAL_LAMBDA_MIN: 30,          // Snappier base response
+  VISUAL_LAMBDA_MIN: 40,          // Snappier base response (was 30)
   VISUAL_LAMBDA_MAX: 50,          // Faster at speed
   VISUAL_OFFSET_DECAY: 0.35,      // Faster correction hiding
   
   // Latency Compensation
   MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
-  RECONCILE_BLEND_FAST: 0.5,      // Faster blending when needed
+  RECONCILE_BLEND_FAST: 0.7,      // Faster blending when needed (was 0.5)
   RECONCILE_BLEND_SLOW: 0.15,      // Less sluggish slow blend
+  RESPONSIVENESS_BUFFER: 0.03,    // 30ms extra lookahead for instant feel
 
   // S-Tier Sub-Frame Precision
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
