@@ -1027,8 +1027,8 @@ export class SoccerRoom extends Room {
 
       // Check for collision
       if (dist < combinedRadius) {
-        // Cooldown check (100ms) to prevent spam
-        if (player.lastBallContactTime && now - player.lastBallContactTime < 100) return
+        // Phase 58: Reduced cooldown (50ms) for faster collision feedback 🔥
+        if (player.lastBallContactTime && now - player.lastBallContactTime < 50) return
 
         player.lastBallContactTime = now
 
@@ -1059,3 +1059,4 @@ export class SoccerRoom extends Room {
     })
   }
 }
+
