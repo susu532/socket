@@ -115,5 +115,13 @@ export const PHYSICS = {
   BALL_SPIN_TRANSFER: 0.3,
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
+
+  // Advanced Mechanics (Dribbling, Curve, Headers)
+  MAGNUS_COEFFICIENT: 0.15,      // Strength of curve effect
+  DRIBBLE_DISTANCE: 1.8,         // Max distance for soft control
+  DRIBBLE_SPEED_LIMIT: 12,       // Max player speed to engage dribbling
+  DRIBBLE_FORCE: 0.8,            // Strength of the "glue" force
+  HEADER_HEIGHT_THRESHOLD: 0.8,  // Min height for a header
+  HEADER_UPWARD_FORCE: 4.0,      // Extra vertical impulse for headers
   
 }

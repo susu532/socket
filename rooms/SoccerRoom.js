@@ -714,7 +714,39 @@ export class SoccerRoom extends Room {
       player.rotY = rotY
       player.tick = this.currentTick
 
-      
+      // --- DRIBBLING MECHANICS ---
+      // If player is close to ball and moving slowly, apply "soft" control
+      if (this.ballBody) {
+        const ballPos = this.ballBody.translation()
+        const dx = ballPos.x - newX
+        const dy = ballPos.y - newY
+        const dz = ballPos.z - newZ
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        
+        const playerSpeed = Math.sqrt(player.vx * player.vx + player.vz * player.vz)
+        
+        if (dist < PHYSICS.DRIBBLE_DISTANCE && playerSpeed < PHYSICS.DRIBBLE_SPEED_LIMIT) {
+          // Calculate dribble target point (slightly in front of player based on rotation)
+          const angle = player.rotY || 0
+          const targetDist = PHYSICS.PLAYER_RADIUS + PHYSICS.BALL_RADIUS * 0.5
+          const targetX = newX + Math.sin(angle) * targetDist
+          const targetZ = newZ + Math.cos(angle) * targetDist
+          
+          // Apply force towards target
+          const forceX = (targetX - ballPos.x) * PHYSICS.DRIBBLE_FORCE
+          const forceZ = (targetZ - ballPos.z) * PHYSICS.DRIBBLE_FORCE
+          
+          this.ballBody.applyImpulse({ x: forceX, y: 0, z: forceZ }, true)
+          
+          // Soften ball velocity to keep it close
+          const ballVel = this.ballBody.linvel()
+          this.ballBody.setLinvel({
+            x: ballVel.x * 0.95 + player.vx * 0.05,
+            y: ballVel.y,
+            z: ballVel.z * 0.95 + player.vz * 0.05
+          }, true)
+        }
+      }
     })
 
 
@@ -745,8 +777,24 @@ export class SoccerRoom extends Room {
       this.state.ball.tick = this.currentTick
 
 
-      // Limit angular velocity
+      // --- MAGNUS EFFECT (Curve Ball) ---
+      // F = Cm * (omega x v)
       const angvel = this.ballBody.angvel()
+      const linvel = this.ballBody.linvel()
+      
+      // Cross product: omega x v
+      const magnusX = angvel.y * linvel.z - angvel.z * linvel.y
+      const magnusY = angvel.z * linvel.x - angvel.x * linvel.z
+      const magnusZ = angvel.x * linvel.y - angvel.y * linvel.x
+      
+      const cm = PHYSICS.MAGNUS_COEFFICIENT
+      this.ballBody.applyImpulse({
+        x: magnusX * cm * deltaTime,
+        y: magnusY * cm * deltaTime,
+        z: magnusZ * cm * deltaTime
+      }, true)
+
+      // Limit angular velocity
       const maxAv = 15.0
       const avSq = angvel.x ** 2 + angvel.y ** 2 + angvel.z ** 2
       if (avSq > maxAv ** 2) {
@@ -971,6 +1019,15 @@ export class SoccerRoom extends Room {
           velocity: { x: ballVel.x, y: ballVel.y, z: ballVel.z }
         })
         
+        // --- HEADER DETECTION ---
+        // If ball is above player and player is jumping/high enough
+        const isHeader = playerPos.y > PHYSICS.HEADER_HEIGHT_THRESHOLD && ballPos.y > playerPos.y + 0.3
+        
+        if (isHeader) {
+          // Apply upward "pop"
+          this.ballBody.applyImpulse({ x: 0, y: PHYSICS.HEADER_UPWARD_FORCE, z: 0 }, true)
+        }
+
         // Update ownership if significant contact
         this.state.ball.ownerSessionId = sessionId
         
