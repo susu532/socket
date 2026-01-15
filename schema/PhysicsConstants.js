@@ -83,8 +83,8 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 8,                  // Increased for 240Hz precision
-  CCD_ITERATIONS: 4,                  // Max CCD iterations per frame
+  SWEEP_SUBSTEPS: 16,                 // Increased for 240Hz precision (Anti-Tunneling)
+  CCD_ITERATIONS: 8,                  // Max CCD iterations per frame
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
