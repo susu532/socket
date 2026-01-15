@@ -85,6 +85,7 @@ export class SoccerRoom extends Room {
 
     // Physics loop
     this.setSimulationInterval((deltaTime) => this.physicsUpdate(deltaTime), PHYSICS_TICK_RATE)
+
     // Power-up spawning (every 20 seconds)
     this.powerUpInterval = this.clock.setInterval(() => this.spawnPowerUp(), 20000)
 
@@ -456,7 +457,6 @@ export class SoccerRoom extends Room {
       }
     }
   }
-
 
   handleJoinTeam(client, data) {
     const player = this.state.players.get(client.sessionId)
