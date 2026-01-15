@@ -445,6 +445,21 @@ export class SoccerRoom extends Room {
 
       // Apply impulse with a slight vertical boost for better feel
       // Note: impulse is already scaled by kickMult from client
+      // Phase 60: Server-side Kick Grace Period 🛡️
+      // Move ball slightly away from player to prevent immediate collision logic from cancelling the kick
+      // We push it 0.1m in the direction of the kick
+      const kickDirX = impulseX
+      const kickDirZ = impulseZ
+      const len = Math.sqrt(kickDirX * kickDirX + kickDirZ * kickDirZ)
+      if (len > 0.001) {
+         const pushDist = 0.15
+         this.ballBody.setTranslation({
+            x: ballPos.x + (kickDirX / len) * pushDist,
+            y: ballPos.y,
+            z: ballPos.z + (kickDirZ / len) * pushDist
+         }, true)
+      }
+
       this.ballBody.applyImpulse({ 
         x: impulseX, 
         y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, 
