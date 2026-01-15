@@ -419,11 +419,10 @@ export class SoccerRoom extends Room {
     if (!player || !body || !this.ballBody) return
 
     // LAG COMPENSATION: Rewind player to the time of the kick
-    // We use the client's timestamp (data.timestamp) to find where they were
-    // But we clamp it to a reasonable window to prevent cheating
+    // Use client-reported RTT instead of absolute timestamp (different time bases)
+    const rtt = data.rtt || 0
+    const lag = Math.min(rtt / 2, PHYSICS.LAG_COMPENSATION_MAX_LAG)
     const now = Date.now()
-    const clientTime = data.timestamp || now
-    const lag = Math.min(now - clientTime, PHYSICS.LAG_COMPENSATION_MAX_LAG)
     const rewindTime = now - lag
     
     // Temporarily rewind player body for distance check
@@ -445,20 +444,35 @@ export class SoccerRoom extends Room {
 
       // Apply impulse with a slight vertical boost for better feel
       // Note: impulse is already scaled by kickMult from client
+      const finalImpulseY = impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult
+
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, 
+        y: finalImpulseY, 
         z: impulseZ 
       }, true)
 
-      // Broadcast kick visual to all clients with impulse for prediction
+      // Suppress collision detection for this player for a short window
+      player.kickCooldownUntil = Date.now() + PHYSICS.KICK_COLLISION_SUPPRESS_MS
+
+      // Get ball state AFTER impulse for accurate client prediction
+      const postKickVel = this.ballBody.linvel()
+      const postKickPos = this.ballBody.translation()
+
+      // Broadcast kick visual to all clients with velocity for prediction
       this.broadcast('ball-kicked', { 
         playerId: client.sessionId,
-        impulse: { 
-          x: impulseX, 
-          y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, // Visual boost scaled
-          z: impulseZ 
-        }
+        velocity: { 
+          x: postKickVel.x, 
+          y: postKickVel.y,
+          z: postKickVel.z 
+        },
+        position: {
+          x: postKickPos.x,
+          y: postKickPos.y,
+          z: postKickPos.z
+        },
+        tick: this.currentTick
       })
 
       // Set ball ownership to kicker
@@ -1017,6 +1031,9 @@ export class SoccerRoom extends Room {
     this.state.players.forEach((player, sessionId) => {
       const body = this.playerBodies.get(sessionId)
       if (!body) return
+
+      // Skip if player just kicked (prevents double-event)
+      if (player.kickCooldownUntil && now < player.kickCooldownUntil) return
 
       const playerPos = body.translation()
       const dx = ballPos.x - playerPos.x
