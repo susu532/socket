@@ -51,7 +51,7 @@ export class SoccerRoom extends Room {
     this.setState(new GameState())
     
     // Set patch rate to 30Hz (33ms) to reduce bandwidth usage
-    this.setPatchRate(33)
+    this.setPatchRate(16)
 
 
     this.roomCreatedAt = Date.now()
