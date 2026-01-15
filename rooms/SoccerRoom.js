@@ -22,6 +22,10 @@ export class SoccerRoom extends Room {
   world = null
   playerBodies = new Map()
   ballBody = null
+  
+  // Lag Compensation History
+  // Map<sessionId, Array<{ tick, x, y, z, rotY, timestamp }>>
+  playerHistory = new Map()
 
   // Timers
   lastGoalTime = 0
@@ -414,6 +418,18 @@ export class SoccerRoom extends Room {
     const body = this.playerBodies.get(client.sessionId)
     if (!player || !body || !this.ballBody) return
 
+    // LAG COMPENSATION: Rewind player to the time of the kick
+    // We use the client's timestamp (data.timestamp) to find where they were
+    // But we clamp it to a reasonable window to prevent cheating
+    const now = Date.now()
+    const clientTime = data.timestamp || now
+    const lag = Math.min(now - clientTime, PHYSICS.LAG_COMPENSATION_MAX_LAG)
+    const rewindTime = now - lag
+    
+    // Temporarily rewind player body for distance check
+    const originalPos = body.translation()
+    this.rewindPlayer(client.sessionId, rewindTime)
+    
     const playerPos = body.translation()
     const ballPos = this.ballBody.translation()
 
@@ -454,6 +470,46 @@ export class SoccerRoom extends Room {
         this.secondLastTouchSessionId = this.lastTouchSessionId
         this.lastTouchSessionId = client.sessionId
       }
+    }
+    
+    // Restore player position
+    this.restorePlayer(client.sessionId, originalPos)
+  }
+
+  rewindPlayer(sessionId, targetTime) {
+    const history = this.playerHistory.get(sessionId)
+    if (!history || history.length < 2) return
+
+    // Find the two snapshots surrounding targetTime
+    let i = history.length - 1
+    while (i > 0 && history[i].timestamp > targetTime) {
+      i--
+    }
+    
+    const s0 = history[i]
+    const s1 = history[i + 1]
+    
+    if (!s0 || !s1) return // Can't interpolate
+
+    // Interpolate
+    const t = (targetTime - s0.timestamp) / (s1.timestamp - s0.timestamp)
+    const clampedT = Math.max(0, Math.min(1, t))
+    
+    const x = s0.x + (s1.x - s0.x) * clampedT
+    const y = s0.y + (s1.y - s0.y) * clampedT
+    const z = s0.z + (s1.z - s0.z) * clampedT
+    
+    // Move physics body
+    const body = this.playerBodies.get(sessionId)
+    if (body) {
+      body.setTranslation({ x, y, z }, true)
+    }
+  }
+
+  restorePlayer(sessionId, originalPos) {
+    const body = this.playerBodies.get(sessionId)
+    if (body) {
+      body.setTranslation(originalPos, true)
     }
   }
 
@@ -707,12 +763,32 @@ export class SoccerRoom extends Room {
       body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
 
       // Update state for sync (rounded to 3 decimal places)
-          // Update state for sync
+      // Update state for sync
       player.x = newX
       player.y = newY
       player.z = newZ
       player.rotY = rotY
       player.tick = this.currentTick
+
+      // Record history for Lag Compensation
+      if (!this.playerHistory.has(sessionId)) {
+        this.playerHistory.set(sessionId, [])
+      }
+      const history = this.playerHistory.get(sessionId)
+      history.push({
+        tick: this.currentTick,
+        x: newX,
+        y: newY,
+        z: newZ,
+        rotY: rotY,
+        timestamp: Date.now()
+      })
+      
+      // Prune history (keep last 1 second)
+      const cutoff = Date.now() - PHYSICS.LAG_COMPENSATION_HISTORY_MS
+      while (history.length > 0 && history[0].timestamp < cutoff) {
+        history.shift()
+      }
 
       
     })

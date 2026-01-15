@@ -116,5 +116,21 @@ export const PHYSICS = {
   BALL_SPIN_TRANSFER: 0.3,
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
+
+  // Phase 48: Gold Standard Netcode 🏆
+  LAG_COMPENSATION_HISTORY_MS: 1000,  // 1 second of history for rewind
+  LAG_COMPENSATION_MAX_LAG: 400,      // Max lag to compensate for (400ms)
   
+  // RK4 Physics
+  RK4_ENABLED: true,
+  
+  // Dynamic Hermite Tension
+  HERMITE_TENSION_AIR: 0.5,           // Smooth arcs
+  HERMITE_TENSION_BOUNCE: 0.0,        // Sharp bounces
+  HERMITE_TENSION_ADAPT_SPEED: 10.0,  // Speed of tension adaptation
+
+  // Phase 49: Hyper-Polished Collision 💎
+  EXTRAPOLATION_MAX_MS: 100,          // Max extrapolation time for remote players
+  HIT_STOP_DURATION_MS: 40,           // 40ms freeze on heavy impact
+  HIT_STOP_THRESHOLD: 15.0,           // Velocity threshold for hit stop
 }
