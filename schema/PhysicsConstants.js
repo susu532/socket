@@ -74,7 +74,7 @@ export const PHYSICS = {
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
   VISUAL_TIMESTEP: 1 / 240,
   KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
-  TOUCH_RESPONSE_BOOST: 1.5,          // Boost factor for first-touch
+  TOUCH_RESPONSE_BOOST: 2.0,          // Increased from 1.5 for instant feel
   
   // Adaptive Reconciliation Tiers
   RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
@@ -82,13 +82,13 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 8,                  // Increased for 240Hz precision
+  SWEEP_SUBSTEPS: 12,                 // Increased from 8 for 240Hz precision
   CCD_ITERATIONS: 4,                  // Max CCD iterations per frame
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
-  FIRST_TOUCH_SNAP_FACTOR: 0.92,      // Near-instant visual snap on first contact
-  COLLISION_CONFIDENCE_BOOST: 1.8,    // Increase impulse confidence weighting
+  FIRST_TOUCH_SNAP_FACTOR: 0.96,      // Increased from 0.92 for instant visual snap
+  COLLISION_CONFIDENCE_BOOST: 2.2,    // Increased from 1.8 weighting
   TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
   MICRO_COLLISION_THRESHOLD: 0.008,   // 8ms threshold for micro-collision timing
 
@@ -105,15 +105,21 @@ export const PHYSICS = {
   RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 
   // Phase 22-26: Advanced Collision Refinement
-  COLLISION_SUBDIVISIONS: 4,
+  COLLISION_SUBDIVISIONS: 8,          // Increased from 4 for 240Hz precision
   COLLISION_SUBDIVISION_THRESHOLD: 0.5,
   HERMITE_TENSION: 0.0,
-  IMPULSE_RAMP_FRAMES: 3,
-  COLLISION_ANGLE_FACTOR: 0.8,
+  IMPULSE_RAMP_FRAMES: 2,             // Reduced from 3 for snappier response
+  COLLISION_ANGLE_FACTOR: 0.85,       // Increased from 0.8
   
   // Phase 30: Angular Momentum (Spin)
-  BALL_SPIN_TRANSFER: 0.3,
-  BALL_SPIN_DECAY: 0.98,
-  MAX_SPIN_RATE: 20,
+  BALL_SPIN_TRANSFER: 0.3,           // Increased from 0.3
+  BALL_SPIN_DECAY: 0.98,             // Increased from 0.98
+  MAX_SPIN_RATE: 20,                  // Increased from 20
   
+  // Phase 32: Gold Standard Collision Tuning
+  COLLISION_COOLDOWN: 0.002,          // 2ms - near-instant re-collision
+  BASE_LOOKAHEAD: 0.02,               // 20ms base lookahead
+  MAX_LOOKAHEAD: 0.08,                // 80ms max lookahead
+  IMPULSE_PREDICTION_FACTOR: 1.0,     // Full trust in local prediction
+  COLLISION_LOCKOUT_DURATION: 0.12,   // 120ms lockout window
 }
