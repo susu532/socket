@@ -85,13 +85,13 @@ export class SoccerRoom extends Room {
 
     // Physics loop
     this.setSimulationInterval((deltaTime) => this.physicsUpdate(deltaTime), PHYSICS_TICK_RATE)
-
     // Power-up spawning (every 20 seconds)
     this.powerUpInterval = this.clock.setInterval(() => this.spawnPowerUp(), 20000)
 
     // Message handlers
     this.onMessage('input', (client, data) => this.handleInput(client, data))
     this.onMessage('kick', (client, data) => this.handleKick(client, data))
+    this.onMessage('tackle', (client) => this.handleTackle(client))
     this.onMessage('join-team', (client, data) => this.handleJoinTeam(client, data))
     this.onMessage('chat', (client, data) => this.handleChat(client, data))
     this.onMessage('start-game', (client) => this.handleStartGame(client))
@@ -454,6 +454,73 @@ export class SoccerRoom extends Room {
       if (this.lastTouchSessionId !== client.sessionId) {
         this.secondLastTouchSessionId = this.lastTouchSessionId
         this.lastTouchSessionId = client.sessionId
+      }
+    }
+  }
+
+  // Phase 38: Tackle / Charge
+  handleTackle(client) {
+    const tackler = this.state.players.get(client.sessionId)
+    const tacklerBody = this.playerBodies.get(client.sessionId)
+    if (!tackler || !tacklerBody) return
+
+    // Cooldown check (simple timestamp)
+    const now = Date.now()
+    if (tackler.lastTackleTime && now - tackler.lastTackleTime < 1000) return
+    tackler.lastTackleTime = now
+
+    const tacklerPos = tacklerBody.translation()
+    
+    // Find target (closest opponent with ball or just closest opponent)
+    let targetId = null
+    let minDist = 2.0 // Tackle range
+
+    this.state.players.forEach((p, id) => {
+      if (id !== client.sessionId && p.team !== tackler.team) {
+        const targetBody = this.playerBodies.get(id)
+        if (targetBody) {
+          const tPos = targetBody.translation()
+          const dist = Math.sqrt(
+            (tPos.x - tacklerPos.x) ** 2 + 
+            (tPos.z - tacklerPos.z) ** 2
+          )
+          
+          if (dist < minDist) {
+            minDist = dist
+            targetId = id
+          }
+        }
+      }
+    })
+
+    if (targetId) {
+      const targetBody = this.playerBodies.get(targetId)
+      const targetPos = targetBody.translation()
+      
+      // Calculate knockback direction
+      const dx = targetPos.x - tacklerPos.x
+      const dz = targetPos.z - tacklerPos.z
+      const len = Math.sqrt(dx*dx + dz*dz) || 1
+      
+      const dirX = dx / len
+      const dirZ = dz / len
+      
+      // Apply knockback to target
+      targetBody.applyImpulse({ x: dirX * 10, y: 5, z: dirZ * 10 }, true)
+      
+      // Apply recoil to tackler
+      tacklerBody.applyImpulse({ x: -dirX * 5, y: 2, z: -dirZ * 5 }, true)
+      
+      // If target had ball, steal it
+      if (this.state.ball.ownerSessionId === targetId) {
+        this.state.ball.ownerSessionId = client.sessionId
+        
+        // Pop ball up slightly
+        if (this.ballBody) {
+          this.ballBody.applyImpulse({ x: 0, y: 5, z: 0 }, true)
+        }
+        
+        this.broadcast('tackle-success', { tacklerId: client.sessionId, targetId })
       }
     }
   }
