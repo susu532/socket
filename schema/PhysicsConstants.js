@@ -36,11 +36,11 @@ export const PHYSICS = {
   WALL_THICKNESS: 2,
   
   // Mechanics
-  KICK_RANGE: 3.0,
-  KICK_POWER: 65,
+  KICK_RANGE: 2.0,
+  KICK_POWER: 50,
   KICK_COOLDOWN: 0.2,
-  SPECULATIVE_IMPULSE_FACTOR: 0.85,
-  KICK_VERTICAL_BOOST: 0.8,
+  SPECULATIVE_IMPULSE_FACTOR: 0.7,
+  KICK_VERTICAL_BOOST: 0.5,
   
   // Arena
   ARENA_WIDTH: 30,
@@ -133,8 +133,4 @@ export const PHYSICS = {
   EXTRAPOLATION_MAX_MS: 150,          // Max extrapolation time for remote players
   HIT_STOP_DURATION_MS: 40,           // 40ms freeze on heavy impact
   HIT_STOP_THRESHOLD: 15.0,           // Velocity threshold for hit stop
-  
-  // Phase 60: Latency-Induced Interpenetration Fix 🛡️
-  COLLISION_COOLDOWN_MS: 16,          // Match physics tick (16ms) to prevent missed events
-  PREDICTIVE_COLLISION_THRESHOLD: 0.5, // 0.5m extra radius for pre-step prediction
 }
