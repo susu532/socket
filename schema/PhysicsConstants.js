@@ -21,7 +21,7 @@ export const PHYSICS = {
   BALL_RADIUS: 0.8,
   BALL_MASS: 3.0,
   BALL_RESTITUTION: 0.75,
-  BALL_LINEAR_DAMPING: 1.5,
+  BALL_LINEAR_DAMPING: 0.8,
   BALL_ANGULAR_DAMPING: 1.5,
   BALL_FRICTION: 0.5,
   
@@ -40,7 +40,7 @@ export const PHYSICS = {
   KICK_POWER: 65,
   KICK_COOLDOWN: 0.2,
   SPECULATIVE_IMPULSE_FACTOR: 0.85,
-  KICK_VERTICAL_BOOST: 0.8,
+  KICK_VERTICAL_BOOST: 5.0,
   
   // Arena
   ARENA_WIDTH: 30,
@@ -116,7 +116,7 @@ export const PHYSICS = {
   BALL_SPIN_TRANSFER: 0.3,
   BALL_SPIN_DECAY: 0.98,
   MAX_SPIN_RATE: 20,
-  
+
   // Phase 48: Gold Standard Netcode 🏆
   LAG_COMPENSATION_HISTORY_MS: 1000,  // 1 second of history for rewind
   LAG_COMPENSATION_MAX_LAG: 400,      // Max lag to compensate for (400ms)
