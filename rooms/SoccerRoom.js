@@ -661,6 +661,11 @@ export class SoccerRoom extends Room {
     this.state.currentTick = this.currentTick
 
     // Phase 28: Server Collision Event Broadcasting
+    // Phase 28: Server Collision Event Broadcasting
+    // Phase 60: Pre-Step Collision Prediction 🔮
+    // Detect collisions BEFORE physics step to prevent tunneling
+    this.predictCollisionsPreStep()
+    
     this.detectBallPlayerCollisions()
 
       // 1. Update players from Input Queue
@@ -1034,9 +1039,47 @@ export class SoccerRoom extends Room {
       const combinedRadius = PHYSICS.BALL_RADIUS + PHYSICS.PLAYER_RADIUS
 
       // Check for collision
-      if (dist < combinedRadius) {
+      // Phase 60: Lag Compensation for Passive Collisions 🛡️
+      // Rewind player to their perceived time to check if they hit the ball
+      // This fixes "ball went through me" issues
+      
+      // 1. Check current position first (fast path)
+      let hasCollision = dist < combinedRadius
+      
+      // 2. If no collision, check history (Lag Compensation)
+      if (!hasCollision) {
+         const clientTime = player.lastInputTimestamp || now
+         const lag = Math.min(now - clientTime, PHYSICS.LAG_COMPENSATION_MAX_LAG)
+         
+         if (lag > 20) { // Only rewind if lag is significant (>20ms)
+            const rewindTime = now - lag
+            const originalPos = body.translation()
+            
+            // Rewind
+            this.rewindPlayer(sessionId, rewindTime)
+            const rewindPos = body.translation()
+            
+            // Check collision again
+            const rdx = ballPos.x - rewindPos.x
+            const rdy = ballPos.y - rewindPos.y
+            const rdz = ballPos.z - rewindPos.z
+            const rdist = Math.sqrt(rdx*rdx + rdy*rdy + rdz*rdz)
+            
+            if (rdist < combinedRadius) {
+               hasCollision = true
+               // Use rewinded normal for accuracy
+               dx = rdx; dy = rdy; dz = rdz; dist = rdist;
+            }
+            
+            // Restore
+            this.restorePlayer(sessionId, originalPos)
+         }
+      }
+
+      if (hasCollision) {
         // Phase 58: Reduced cooldown (50ms) for faster collision feedback 🔥
-        if (player.lastBallContactTime && now - player.lastBallContactTime < 50) return
+        // Phase 60: Match physics tick (16ms) for no missed events 🛡️
+        if (player.lastBallContactTime && now - player.lastBallContactTime < PHYSICS.COLLISION_COOLDOWN_MS) return
 
         player.lastBallContactTime = now
 
@@ -1065,6 +1108,104 @@ export class SoccerRoom extends Room {
         }
       }
     })
+  }
+
+  // Phase 60: Pre-Step Collision Prediction 🔮
+  predictCollisionsPreStep() {
+    if (!this.ballBody) return
+    
+    const ballPos = this.ballBody.translation()
+    const ballVel = this.ballBody.linvel()
+    const dt = PHYSICS.FIXED_TIMESTEP
+    
+    // Predict ball end position
+    const ballEnd = {
+      x: ballPos.x + ballVel.x * dt,
+      y: ballPos.y + ballVel.y * dt - 0.5 * PHYSICS.WORLD_GRAVITY * dt * dt,
+      z: ballPos.z + ballVel.z * dt
+    }
+    
+    this.state.players.forEach((player, sessionId) => {
+      const body = this.playerBodies.get(sessionId)
+      if (!body) return
+      
+      const playerPos = body.translation()
+      // Add extra margin for prediction
+      const combinedRadius = PHYSICS.BALL_RADIUS + (player.giant ? 2.0 : PHYSICS.PLAYER_RADIUS) + PHYSICS.PREDICTIVE_COLLISION_THRESHOLD
+      
+      // Sweep test
+      const t = this.sphereSweep(ballPos, ballEnd, playerPos, combinedRadius)
+      
+      if (t !== null && t >= 0 && t <= 1) {
+        // Collision will occur! Apply impulse now to prevent tunneling
+        // We push the ball out slightly along the normal
+        const impactPoint = this.lerpVec(ballPos, ballEnd, t)
+        const dx = impactPoint.x - playerPos.x
+        const dy = impactPoint.y - playerPos.y
+        const dz = impactPoint.z - playerPos.z
+        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz)
+        
+        if (dist > 0.0001) {
+           const nx = dx / dist
+           const ny = dy / dist
+           const nz = dz / dist
+           
+           // Apply predictive impulse (bounce)
+           // This ensures RAPIER sees the ball moving AWAY from player in the next step
+           const vDotN = ballVel.x * nx + ballVel.y * ny + ballVel.z * nz
+           if (vDotN < 0) {
+              const j = -vDotN * (1 + PHYSICS.BALL_RESTITUTION)
+              this.ballBody.applyImpulse({ x: nx * j, y: ny * j, z: nz * j }, true)
+              
+              // Also nudge position to surface to prevent deep penetration
+              // But be careful not to teleport too far
+              const penetration = combinedRadius - dist
+              if (penetration > 0) {
+                 this.ballBody.setTranslation({
+                    x: ballPos.x + nx * penetration * 0.5,
+                    y: ballPos.y + ny * penetration * 0.5,
+                    z: ballPos.z + nz * penetration * 0.5
+                 }, true)
+              }
+           }
+        }
+      }
+    })
+  }
+
+  // Helper: Sphere Sweep Test
+  sphereSweep(p1, p2, center, radius) {
+     const dx = p2.x - p1.x
+     const dy = p2.y - p1.y
+     const dz = p2.z - p1.z
+     
+     const fx = p1.x - center.x
+     const fy = p1.y - center.y
+     const fz = p1.z - center.z
+     
+     const a = dx*dx + dy*dy + dz*dz
+     const b = 2 * (fx*dx + fy*dy + fz*dz)
+     const c = fx*fx + fy*fy + fz*fz - radius*radius
+     
+     if (a < 0.0001) return null
+     
+     const discriminant = b*b - 4*a*c
+     if (discriminant < 0) return null
+     
+     const sqrtDisc = Math.sqrt(discriminant)
+     const t1 = (-b - sqrtDisc) / (2*a)
+     
+     if (t1 >= 0 && t1 <= 1) return t1
+     return null
+  }
+
+  // Helper: Vector Lerp
+  lerpVec(v1, v2, t) {
+     return {
+        x: v1.x + (v2.x - v1.x) * t,
+        y: v1.y + (v2.y - v1.y) * t,
+        z: v1.z + (v2.z - v1.z) * t
+     }
   }
 }
 
