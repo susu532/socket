@@ -38,7 +38,7 @@ export const PHYSICS = {
   KICK_RANGE: 3.0,
   KICK_POWER: 65,
   KICK_COOLDOWN: 0.2,
-  SPECULATIVE_IMPULSE_FACTOR: 0.92,
+  SPECULATIVE_IMPULSE_FACTOR: 0.96,
   KICK_VERTICAL_BOOST: 0.8,
   
   // Arena
@@ -73,7 +73,7 @@ export const PHYSICS = {
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
   VISUAL_TIMESTEP: 1 / 240,
   KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
-  TOUCH_RESPONSE_BOOST: 1.8,          // Boost factor for first-touch
+  TOUCH_RESPONSE_BOOST: 2.2,          // Boost factor for first-touch
   
   // Adaptive Reconciliation Tiers
   RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
@@ -82,12 +82,12 @@ export const PHYSICS = {
   
   // Collision Prediction Tuning
   SWEEP_SUBSTEPS: 8,                  // Sub-frame sweep subdivisions
-  INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
+  INSTANT_TOUCH_THRESHOLD: 0.010,     // 10ms for instant visual response
 
   // Professional Touch Response
-  FIRST_TOUCH_SNAP_FACTOR: 0.95,      // Near-instant visual snap on first contact
-  COLLISION_CONFIDENCE_BOOST: 2.0,    // Increase impulse confidence weighting
-  TOUCH_VELOCITY_TRANSFER: 0.85,       // Aggressive player velocity transfer
+  FIRST_TOUCH_SNAP_FACTOR: 0.98,      // Near-instant visual snap on first contact
+  COLLISION_CONFIDENCE_BOOST: 2.5,    // Increase impulse confidence weighting
+  TOUCH_VELOCITY_TRANSFER: 0.92,       // Aggressive player velocity transfer
   MICRO_COLLISION_THRESHOLD: 0.005,   // 5ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
