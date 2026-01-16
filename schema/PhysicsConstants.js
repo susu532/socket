@@ -120,4 +120,10 @@ export const PHYSICS = {
   MAX_LOOKAHEAD: 0.08,                // 80ms max lookahead
   IMPULSE_PREDICTION_FACTOR: 1.0,     // Full trust in local prediction
   COLLISION_LOCKOUT_DURATION: 0.12,   // 120ms lockout window
+  
+  // Phase 33: Gold Standard Netcode Refinement
+  SERVER_PATCH_RATE: 60,              // 60Hz server updates
+  INPUT_BATCH_SIZE: 5,                // Max inputs to process per tick
+  JITTER_BUFFER_MAX: 10,              // Max input queue size
+  RECONCILE_SNAP_THRESHOLD: 4.0,      // Distance to force hard snap
 }
