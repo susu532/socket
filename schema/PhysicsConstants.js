@@ -116,10 +116,8 @@ export const PHYSICS = {
   
   // Phase 32: Gold Standard Collision Tuning
   COLLISION_COOLDOWN: 0.002,          // 2ms - near-instant re-collision
-  BASE_LOOKAHEAD: 0.04,               // 40ms base lookahead (was 0.02)
+  BASE_LOOKAHEAD: 0.02,               // 20ms base lookahead
   MAX_LOOKAHEAD: 0.08,                // 80ms max lookahead
   IMPULSE_PREDICTION_FACTOR: 1.0,     // Full trust in local prediction
   COLLISION_LOCKOUT_DURATION: 0.12,   // 120ms lockout window
-  COLLISION_PUSH_FACTOR: 1.0,         // Hard visual correction factor
-  PLAYER_COLLISION_CONSTRAINT: 0.8,   // Player velocity reduction against ball
 }
