@@ -659,11 +659,9 @@ export class SoccerRoom extends Room {
       player.vz = player.vz || 0
       
       if (x === 0 && z === 0) {
-        // Quick deceleration to prevent sliding
-        player.vx *= 0.5
-        player.vz *= 0.5
-        if (Math.abs(player.vx) < 0.01) player.vx = 0
-        if (Math.abs(player.vz) < 0.01) player.vz = 0
+        // Instant stop to prevent sliding
+        player.vx = 0
+        player.vz = 0
       } else {
         const smoothing = PHYSICS.VELOCITY_SMOOTHING
         player.vx = player.vx + (x * speed - player.vx) * smoothing
