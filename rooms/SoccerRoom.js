@@ -46,7 +46,7 @@ export class SoccerRoom extends Room {
     await RAPIER.init()
     this.setState(new GameState())
     
-    // Set patch rate to 60Hz (16ms) for competitive responsiveness
+    // Set patch rate to 60Hz (16ms) to reduce bandwidth usage
     this.setPatchRate(16)
 
 
@@ -591,125 +591,134 @@ export class SoccerRoom extends Room {
     })
   }
 
-  applyPlayerInput(player, body, input, deltaTime) {
-    const x = input.x || 0
-    const z = input.z || 0
-    const jumpRequestId = input.jumpRequestId || 0
-    const rotY = input.rotY || 0
-
-    // Handle forced reset
-    if (player.resetPosition) {
-      const spawnX = player.team === 'red' ? -6 : 6
-      body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
-      player.vx = 0
-      player.vy = 0
-      player.vz = 0
-      player.resetPosition = false
-      return
-    }
-
-    const speed = PHYSICS.MOVE_SPEED * (player.speedMult || 1)
-    const currentPos = body.translation()
-
-    // Check for power-up collection
-    this.state.powerUps.forEach((p, id) => {
-      const dx = currentPos.x - p.x
-      const dz = currentPos.z - p.z
-      const dist = Math.sqrt(dx * dx + dz * dz)
-      
-      if (dist < 1.5) {
-        this.applyPowerUp(player, p.type)
-        this.state.powerUps.delete(id)
-        this.broadcast('powerup-collected', { sessionId: player.sessionId, type: p.type })
-      }
-    })
-  
-    // Smooth horizontal velocity
-    player.vx = player.vx || 0
-    player.vz = player.vz || 0
-    
-    if (x === 0 && z === 0) {
-      player.vx *= 0.5
-      player.vz *= 0.5
-      if (Math.abs(player.vx) < 0.01) player.vx = 0
-      if (Math.abs(player.vz) < 0.01) player.vz = 0
-    } else {
-      const smoothing = PHYSICS.VELOCITY_SMOOTHING
-      player.vx = player.vx + (x * speed - player.vx) * smoothing
-      player.vz = player.vz + (z * speed - player.vz) * smoothing
-    }
-
-    let newX = currentPos.x + player.vx * deltaTime
-    let newZ = currentPos.z + player.vz * deltaTime
-
-    // Vertical movement
-    player.vy = (player.vy || 0) - PHYSICS.GRAVITY * deltaTime
-
-    if (currentPos.y <= PHYSICS.GROUND_Y + PHYSICS.GROUND_CHECK_EPSILON && player.vy <= 0) {
-      player.jumpCount = 0
-    }
-
-    if (jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
-      const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
-      player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
-      player.jumpCount++
-      player.lastProcessedJumpRequestId = jumpRequestId
-    }
-
-    let newY = currentPos.y + player.vy * deltaTime
-    if (newY < PHYSICS.GROUND_Y) {
-      newY = PHYSICS.GROUND_Y
-      player.vy = 0
-      player.jumpCount = 0
-    }
-
-    // Bounds
-    newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
-    newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
-
-    // Update physics body
-    body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
-
-    // Update state for sync
-    player.x = newX
-    player.y = newY
-    player.z = newZ
-    player.rotY = rotY
-    player.tick = this.currentTick
-  }
-
   physicsUpdate(deltaTimeMs) {
+    // Jitter Fix: Enforce fixed timestep for deterministic physics
+    // We ignore the actual variable deltaTimeMs and assume a perfect 120Hz step
+    // This matches the client's prediction loop exactly.
     const deltaTime = PHYSICS.FIXED_TIMESTEP
     this.currentTick++
     this.state.currentTick = this.currentTick
 
-    // 1. Update players from Input Queue
-    this.state.players.forEach((player, sessionId) => {
-      const body = this.playerBodies.get(sessionId)
-      if (!body) return
-      if (!player.inputQueue) player.inputQueue = []
+      // 1. Update players from Input Queue
+      this.state.players.forEach((player, sessionId) => {
+        const body = this.playerBodies.get(sessionId)
+        if (!body) return
 
-      // Competitive Fix: Process ALL pending inputs to reduce buffering lag
-      // Cap at PHYSICS.INPUT_BATCH_SIZE per tick to prevent speed hacks/bursts
-      let processedCount = 0
-      while (player.inputQueue.length > 0 && processedCount < PHYSICS.INPUT_BATCH_SIZE) {
-        const input = player.inputQueue.shift()
-        player.lastInput = input
-        processedCount++
-        
-        // Apply movement logic for this input sub-step
-        this.applyPlayerInput(player, body, input, deltaTime)
+        // Initialize input queue if needed
+        if (!player.inputQueue) player.inputQueue = []
+
+        // Get next input from queue
+        // We process ONE input per physics tick to match client rate (1:1)
+        let input = player.inputQueue.shift()
+
+        // If no input, use last known input (Prediction/Lag Compensation)
+        // But we must be careful not to drift.
+        // For now, just hold the last button state but zero out movement if queue is empty for too long?
+        // No, standard is to repeat last input.
+        if (!input) {
+           input = player.lastInput || { x: 0, z: 0, jump: false, rotY: player.rotY }
+        } else {
+           player.lastInput = input
+        }
+
+        const x = input.x || 0
+        const z = input.z || 0
+        const jumpRequestId = input.jumpRequestId || 0
+        const rotY = input.rotY || 0
+
+        // Handle forced reset
+        if (player.resetPosition) {
+          const spawnX = player.team === 'red' ? -6 : 6
+          body.setNextKinematicTranslation({ x: spawnX, y: 0.1, z: 0 })
+          player.vx = 0
+          player.vy = 0
+          player.vz = 0
+          player.resetPosition = false
+          return // Skip physics for this frame
+        }
+
+        const speed = PHYSICS.MOVE_SPEED * (player.speedMult || 1)
+        const currentPos = body.translation()
+
+        // Check for power-up collection
+        this.state.powerUps.forEach((p, id) => {
+          const dx = currentPos.x - p.x
+          const dz = currentPos.z - p.z
+          const dist = Math.sqrt(dx * dx + dz * dz)
+          
+          if (dist < 1.5) {
+            this.applyPowerUp(player, p.type)
+            this.state.powerUps.delete(id)
+            this.broadcast('powerup-collected', { sessionId, type: p.type })
+          }
+        })
+      
+      // Smooth horizontal velocity
+      // Instant stop when no input, smooth otherwise
+      player.vx = player.vx || 0
+      player.vz = player.vz || 0
+      
+      if (x === 0 && z === 0) {
+        // Quick deceleration to prevent sliding
+        player.vx *= 0.5
+        player.vz *= 0.5
+        if (Math.abs(player.vx) < 0.01) player.vx = 0
+        if (Math.abs(player.vz) < 0.01) player.vz = 0
+      } else {
+        const smoothing = PHYSICS.VELOCITY_SMOOTHING
+        player.vx = player.vx + (x * speed - player.vx) * smoothing
+        player.vz = player.vz + (z * speed - player.vz) * smoothing
       }
 
-      // If no input was processed this tick, use last known input (Prediction)
-      if (processedCount === 0) {
-        const input = player.lastInput || { x: 0, z: 0, jump: false, rotY: player.rotY }
-        this.applyPlayerInput(player, body, input, deltaTime)
+
+      let newX = currentPos.x + player.vx * deltaTime
+      let newZ = currentPos.z + player.vz * deltaTime
+
+      // Vertical movement
+      player.vy = (player.vy || 0) - PHYSICS.GRAVITY * deltaTime
+
+      if (currentPos.y <= PHYSICS.GROUND_Y + PHYSICS.GROUND_CHECK_EPSILON && player.vy <= 0) {
+        player.jumpCount = 0
       }
+
+      // Jump Request ID Logic: Only jump if we see a NEW request ID
+      if (jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
+        const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
+        player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
+        player.jumpCount++
+        player.lastProcessedJumpRequestId = jumpRequestId
+      }
+
+      let newY = currentPos.y + player.vy * deltaTime
+      if (newY < PHYSICS.GROUND_Y) {
+        newY = PHYSICS.GROUND_Y
+        player.vy = 0
+        player.jumpCount = 0
+      }
+
+      // Bounds
+      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
+      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
+
+      // Update physics body
+      body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ })
+
+      // Update state for sync (rounded to 3 decimal places)
+          // Update state for sync
+      player.x = newX
+      player.y = newY
+      player.z = newZ
+      player.rotY = rotY
+      player.tick = this.currentTick
+
+      
     })
+
+
 
     // 2. Step physics world
     this.world.step()
+
 
     // Check goal
     this.checkGoal()
@@ -720,7 +729,7 @@ export class SoccerRoom extends Room {
       const vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-      this.state.ball.x = pos.x
+            this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
@@ -731,6 +740,7 @@ export class SoccerRoom extends Room {
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
       this.state.ball.tick = this.currentTick
+
 
       // Limit angular velocity
       const angvel = this.ballBody.angvel()
@@ -750,6 +760,8 @@ export class SoccerRoom extends Room {
     const pos = this.ballBody.translation()
 
     // Goal detection: Ball fully past goal line and within posts
+    // We check if X is past the line + radius (fully in)
+    // And Z is within the goal width (minus a small margin to avoid post collisions triggering)
     const goalLineX = PHYSICS.GOAL_LINE_X
     const goalZ = PHYSICS.GOAL_WIDTH / 2
     
