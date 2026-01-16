@@ -107,4 +107,12 @@ export const PHYSICS = {
   HERMITE_TENSION: 0.0,
   IMPULSE_RAMP_FRAMES: 1,
   COLLISION_ANGLE_FACTOR: 0.95,
+
+  // Running Collision Enhancement
+  PLAYER_BALL_RESTITUTION: 0.85,       // Bouncy response when running into ball
+  PLAYER_BALL_VELOCITY_TRANSFER: 0.7,  // How much player momentum transfers to ball
+  PLAYER_BALL_IMPULSE_MIN: 8,          // Minimum impulse to prevent dead touches
+  PLAYER_BALL_APPROACH_BOOST: 1.4,     // Boost factor when approaching head-on
+  RUNNING_COLLISION_SNAP: 0.9,         // Instant visual snap for running collisions
+  COLLISION_VELOCITY_THRESHOLD: 3,     // Speed threshold for enhanced response
 }

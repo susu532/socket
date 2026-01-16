@@ -717,6 +717,8 @@ export class SoccerRoom extends Room {
     // 2. Step physics world
     this.world.step()
 
+    // 3. Handle player-ball collisions with momentum transfer
+    this.handlePlayerBallCollisions()
 
     // Check goal
     this.checkGoal()
@@ -802,6 +804,89 @@ export class SoccerRoom extends Room {
   }
 
 
+
+  handlePlayerBallCollisions() {
+    if (!this.ballBody) return
+
+    const ballPos = this.ballBody.translation()
+    const ballVel = this.ballBody.linvel()
+    const ballRadius = PHYSICS.BALL_RADIUS
+
+    this.state.players.forEach((player, sessionId) => {
+      const body = this.playerBodies.get(sessionId)
+      if (!body) return
+
+      const playerPos = body.translation()
+      const playerRadius = player.giant ? 2.0 : PHYSICS.PLAYER_RADIUS
+      const combinedRadius = ballRadius + playerRadius
+
+      const dx = ballPos.x - playerPos.x
+      const dy = ballPos.y - playerPos.y
+      const dz = ballPos.z - playerPos.z
+      const distSq = dx * dx + dy * dy + dz * dz
+
+      // Check for collision
+      if (distSq < combinedRadius * combinedRadius) {
+        const dist = Math.sqrt(distSq)
+        const nx = dx / (dist || 0.1)
+        const ny = dy / (dist || 0.1)
+        const nz = dz / (dist || 0.1)
+
+        // Relative velocity
+        const relVx = (player.vx || 0) - ballVel.x
+        const relVy = (player.vy || 0) - ballVel.y
+        const relVz = (player.vz || 0) - ballVel.z
+
+        // Approach speed (dot product of relative velocity and normal)
+        const approachSpeed = relVx * nx + relVy * ny + relVz * nz
+
+        // Only apply impulse if player is moving toward the ball
+        if (approachSpeed > 0) {
+          const playerSpeed = Math.sqrt((player.vx || 0) ** 2 + (player.vz || 0) ** 2)
+          const isRunning = playerSpeed > PHYSICS.COLLISION_VELOCITY_THRESHOLD
+
+          // Momentum transfer calculation
+          const momentumFactor = isRunning ? 
+            (playerSpeed / 8) * PHYSICS.PLAYER_BALL_VELOCITY_TRANSFER : 0.5
+          
+          // Approach boost for head-on collisions
+          const approachDot = ((player.vx || 0) * nx + (player.vz || 0) * nz) / (playerSpeed + 0.001)
+          const approachBoost = approachDot > 0.5 ? PHYSICS.PLAYER_BALL_APPROACH_BOOST : 1.0
+
+          // Calculate impulse magnitude
+          let impulseMag = approachSpeed * PHYSICS.BALL_MASS * (1 + PHYSICS.PLAYER_BALL_RESTITUTION) * momentumFactor * approachBoost
+          
+          // Ensure a minimum impulse for responsiveness
+          impulseMag = Math.max(PHYSICS.PLAYER_BALL_IMPULSE_MIN, impulseMag)
+
+          // Apply impulse to ball
+          const impulse = {
+            x: nx * impulseMag,
+            y: Math.max(0.5, ny * impulseMag) + 1.0, // Add some lift
+            z: nz * impulseMag
+          }
+
+          this.ballBody.applyImpulse(impulse, true)
+
+          // Broadcast touch event for client prediction sync
+          this.broadcast('ball-touched', {
+            playerId: sessionId,
+            velocity: this.ballBody.linvel(),
+            position: this.ballBody.translation()
+          })
+
+          // Update touch history
+          if (this.lastTouchSessionId !== sessionId) {
+            this.secondLastTouchSessionId = this.lastTouchSessionId
+            this.lastTouchSessionId = sessionId
+          }
+          
+          // Set ball ownership
+          this.state.ball.ownerSessionId = sessionId
+        }
+      }
+    })
+  }
 
   applyPowerUp(player, type) {
     const duration = this.POWER_UP_TYPES[type].duration
