@@ -14,7 +14,7 @@ export const PHYSICS = {
   MAX_JUMPS: 2,
   GROUND_Y: 0.1,
   GROUND_CHECK_EPSILON: 0.05,
-  PLAYER_RADIUS: 0.4,
+  PLAYER_RADIUS: 0.8,
   PLAYER_HEIGHT: 0.8,
   
   // Ball
@@ -98,7 +98,7 @@ export const PHYSICS = {
 
   // Adaptive Error Thresholds
   RECONCILE_BASE_THRESHOLD: 0.15,
-  RECONCILE_ACTION_THRESHOLD: 0.4,    // After kicks/collisions
+  RECONCILE_ACTION_THRESHOLD: 0.8,    // After kicks/collisions
   RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 
   // Phase 22-26: Advanced Collision Refinement
