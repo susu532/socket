@@ -1,7 +1,7 @@
 // Shared physics constants for client and server consistency
 export const PHYSICS = {
-  TICK_RATE: 60,
-  FIXED_TIMESTEP: 1 / 60,
+  TICK_RATE: 120,
+  FIXED_TIMESTEP: 1 / 120,
   
   // Gravity
   GRAVITY: 20,          // For players (manual physics)
@@ -86,8 +86,8 @@ export const PHYSICS = {
 
   // Professional Touch Response
   FIRST_TOUCH_SNAP_FACTOR: 0.92,      // Near-instant visual snap on first contact
-  COLLISION_CONFIDENCE_BOOST: 1.8,    // Increase impulse confidence weighting
-  TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
+  COLLISION_CONFIDENCE_BOOST: 2.2,    // Increased for Phase 27
+  TOUCH_VELOCITY_TRANSFER: 0.85,      // More aggressive transfer
   MICRO_COLLISION_THRESHOLD: 0.008,   // 8ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
@@ -102,9 +102,17 @@ export const PHYSICS = {
   RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 
   // Phase 22-26: Advanced Collision Refinement
-  COLLISION_SUBDIVISIONS: 4,
+  COLLISION_SUBDIVISIONS: 8,
   COLLISION_SUBDIVISION_THRESHOLD: 0.5,
   HERMITE_TENSION: 0.0,
-  IMPULSE_RAMP_FRAMES: 3,
+  IMPULSE_RAMP_FRAMES: 1,
   COLLISION_ANGLE_FACTOR: 0.8,
+
+  // Centralized Collision Constants
+  COLLISION_COOLDOWN: 0.004,
+  BASE_LOOKAHEAD: 0.025,
+  MAX_LOOKAHEAD: 0.08,
+  IMPULSE_PREDICTION_FACTOR: 0.99,
+  LERP_NORMAL: 30,
+  LERP_COLLISION: 90,
 }

@@ -46,8 +46,8 @@ export class SoccerRoom extends Room {
     await RAPIER.init()
     this.setState(new GameState())
     
-    // Set patch rate to 60Hz (16ms) to reduce bandwidth usage
-    this.setPatchRate(16)
+    // Set patch rate to 30Hz (33ms) to reduce bandwidth usage
+    this.setPatchRate(33)
 
 
     this.roomCreatedAt = Date.now()
@@ -711,7 +711,63 @@ export class SoccerRoom extends Room {
       player.rotY = rotY
       player.tick = this.currentTick
 
+      // --- NEW: Server-Side Player-Ball Collision Resolution ---
+      const ballPos = this.ballBody.translation()
+      const dx = ballPos.x - newX
+      const dy = ballPos.y - (newY + PHYSICS.PLAYER_RADIUS) // Adjust for player collider offset
+      const dz = ballPos.z - newZ
+      const distSq = dx * dx + dy * dy + dz * dz
       
+      const combinedRadius = PHYSICS.BALL_RADIUS + PHYSICS.PLAYER_RADIUS * (player.giant ? 5 : 1)
+      if (distSq < combinedRadius * combinedRadius && distSq > 0.0001) {
+        const dist = Math.sqrt(distSq)
+        const nx = dx / dist
+        const ny = dy / dist
+        const nz = dz / dist
+        
+        // 1. Depenetration (Push ball out)
+        const overlap = combinedRadius - dist
+        const pushX = nx * overlap
+        const pushY = ny * overlap
+        const pushZ = nz * overlap
+        
+        this.ballBody.setTranslation({
+          x: ballPos.x + pushX,
+          y: ballPos.y + pushY,
+          z: ballPos.z + pushZ
+        }, true)
+        
+        // 2. Simple Elastic Impulse
+        const ballVel = this.ballBody.linvel()
+        const relVx = ballVel.x - player.vx
+        const relVy = ballVel.y - player.vy
+        const relVz = ballVel.z - player.vz
+        const approachSpeed = relVx * nx + relVy * ny + relVz * nz
+        
+        if (approachSpeed < 0) {
+          const restitution = PHYSICS.BALL_RESTITUTION
+          const impulseMag = -(1 + restitution) * approachSpeed * PHYSICS.BALL_MASS
+          
+          // Apply elastic impulse
+          this.ballBody.applyImpulse({
+            x: nx * impulseMag,
+            y: ny * impulseMag,
+            z: nz * impulseMag
+          }, true)
+
+          // Apply velocity transfer for "S-tier" feel
+          this.ballBody.applyImpulse({
+            x: player.vx * PHYSICS.TOUCH_VELOCITY_TRANSFER * PHYSICS.BALL_MASS,
+            y: 0,
+            z: player.vz * PHYSICS.TOUCH_VELOCITY_TRANSFER * PHYSICS.BALL_MASS
+          }, true)
+          
+          // 3. Sync collision state
+          this.state.ball.lastCollisionTick = this.currentTick
+          this.state.ball.lastCollisionPlayerId = sessionId
+          this.state.ball.ownerSessionId = sessionId
+        }
+      }
     })
 
 
