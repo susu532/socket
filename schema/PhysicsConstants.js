@@ -107,4 +107,6 @@ export const PHYSICS = {
   HERMITE_TENSION: 0.0,
   IMPULSE_RAMP_FRAMES: 1,
   COLLISION_ANGLE_FACTOR: 0.95,
+  MAX_BALL_VELOCITY: 100,             // Prevent runaway velocities
+  MULTI_COLLISION_DAMPING: 0.9,       // Damping for rapid successive collisions
 }
