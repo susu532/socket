@@ -76,7 +76,7 @@ export const PHYSICS = {
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
   VISUAL_TIMESTEP: 1 / 240,
   KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
-  TOUCH_RESPONSE_BOOST: 3.5,          // Increased from 2.5 for ultra-instant feel
+  TOUCH_RESPONSE_BOOST: 4.0,          // Increased from 3.5 for ultra-instant feel
   
   // Adaptive Reconciliation Tiers
   RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
@@ -89,9 +89,9 @@ export const PHYSICS = {
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
-  FIRST_TOUCH_SNAP_FACTOR: 0.99,      // Increased from 0.98 for instant visual snap
+  FIRST_TOUCH_SNAP_FACTOR: 1.0,       // Increased from 0.99 for instant visual snap
   COLLISION_CONFIDENCE_BOOST: 4.0,    // Increased from 3.0 weighting
-  TOUCH_VELOCITY_TRANSFER: 0.9,       // Aggressive player velocity transfer (was 0.8)
+  TOUCH_VELOCITY_TRANSFER: 1.0,       // Aggressive player velocity transfer (was 0.9)
   MICRO_COLLISION_THRESHOLD: 0.002,   // 2ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
@@ -119,7 +119,7 @@ export const PHYSICS = {
   BASE_LOOKAHEAD: 0.02,               // 20ms base lookahead
   MAX_LOOKAHEAD: 0.08,                // 80ms max lookahead
   IMPULSE_PREDICTION_FACTOR: 1.0,     // Full trust in local prediction
-  COLLISION_LOCKOUT_DURATION: 0.12,   // 120ms lockout window
+  COLLISION_LOCKOUT_DURATION: 0.05,   // 50ms lockout window (was 120ms)
   
   // Phase 33: Gold Standard Netcode Refinement
   SERVER_PATCH_RATE: 60,              // 60Hz server updates
