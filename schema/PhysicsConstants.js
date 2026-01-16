@@ -38,7 +38,7 @@ export const PHYSICS = {
   KICK_RANGE: 3.0,
   KICK_POWER: 65,
   KICK_COOLDOWN: 0.2,
-  SPECULATIVE_IMPULSE_FACTOR: 0.85,
+  SPECULATIVE_IMPULSE_FACTOR: 0.92,
   KICK_VERTICAL_BOOST: 0.8,
   
   // Arena
@@ -81,7 +81,7 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
+  SWEEP_SUBSTEPS: 8,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
@@ -102,9 +102,9 @@ export const PHYSICS = {
   RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 
   // Phase 22-26: Advanced Collision Refinement
-  COLLISION_SUBDIVISIONS: 4,
-  COLLISION_SUBDIVISION_THRESHOLD: 0.5,
+  COLLISION_SUBDIVISIONS: 6,
+  COLLISION_SUBDIVISION_THRESHOLD: 1.5,
   HERMITE_TENSION: 0.0,
   IMPULSE_RAMP_FRAMES: 1,
-  COLLISION_ANGLE_FACTOR: 0.8,
+  COLLISION_ANGLE_FACTOR: 0.95,
 }
