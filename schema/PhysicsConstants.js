@@ -1,7 +1,7 @@
 // Shared physics constants for client and server consistency
 export const PHYSICS = {
-  TICK_RATE: 60,
-  FIXED_TIMESTEP: 1 / 60,
+  TICK_RATE: 120,
+  FIXED_TIMESTEP: 1 / 120,
   
   // Gravity
   GRAVITY: 20,          // For players (manual physics)

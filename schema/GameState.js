@@ -117,7 +117,9 @@ defineTypes(BallState, {
   rz: 'number',
   rw: 'number',
   tick: 'number',
-  ownerSessionId: 'string'
+  ownerSessionId: 'string',
+  lastCollisionTick: 'number',
+  lastCollisionPlayerId: 'string'
 })
 
 // Main game state
