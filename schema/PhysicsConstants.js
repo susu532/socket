@@ -76,7 +76,7 @@ export const PHYSICS = {
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
   VISUAL_TIMESTEP: 1 / 240,
   KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
-  TOUCH_RESPONSE_BOOST: 2.0,          // Increased from 1.5 for instant feel
+  TOUCH_RESPONSE_BOOST: 2.5,          // Increased from 2.0 for ultra-instant feel
   
   // Adaptive Reconciliation Tiers
   RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
@@ -89,10 +89,10 @@ export const PHYSICS = {
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
-  FIRST_TOUCH_SNAP_FACTOR: 0.96,      // Increased from 0.92 for instant visual snap
-  COLLISION_CONFIDENCE_BOOST: 2.2,    // Increased from 1.8 weighting
+  FIRST_TOUCH_SNAP_FACTOR: 0.98,      // Increased from 0.96 for instant visual snap
+  COLLISION_CONFIDENCE_BOOST: 2.5,    // Increased from 2.2 weighting
   TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
-  MICRO_COLLISION_THRESHOLD: 0.008,   // 8ms threshold for micro-collision timing
+  MICRO_COLLISION_THRESHOLD: 0.005,   // 5ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
   HERMITE_BLEND_RANGE_MIN: 0.5,
