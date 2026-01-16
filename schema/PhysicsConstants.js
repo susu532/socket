@@ -16,7 +16,6 @@ export const PHYSICS = {
   GROUND_CHECK_EPSILON: 0.05,
   PLAYER_RADIUS: 0.4,
   PLAYER_HEIGHT: 0.8,
-  PLAYER_RESTITUTION: 0.6, // Bounciness of player (0.0 = soft, 1.0 = super bouncy)
   
   // Ball
   BALL_RADIUS: 0.8,

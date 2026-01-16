@@ -263,7 +263,7 @@ export class SoccerRoom extends Room {
     const collider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
       .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
       .setFriction(2.0)
-      .setRestitution(PHYSICS.PLAYER_RESTITUTION)
+      .setRestitution(0.0)
 
     this.world.createCollider(collider, body)
     this.playerBodies.set(sessionId, body)
