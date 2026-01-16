@@ -90,7 +90,7 @@ export const PHYSICS = {
 
   // Professional Touch Response
   FIRST_TOUCH_SNAP_FACTOR: 0.98,      // Increased from 0.96 for instant visual snap
-  COLLISION_CONFIDENCE_BOOST: 2.5,    // Increased from 2.2 weighting
+  COLLISION_CONFIDENCE_BOOST: 3.0,    // Increased from 2.5 weighting
   TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
   MICRO_COLLISION_THRESHOLD: 0.005,   // 5ms threshold for micro-collision timing
 
@@ -110,7 +110,7 @@ export const PHYSICS = {
   COLLISION_SUBDIVISIONS: 8,          // Increased from 4 for 240Hz precision
   COLLISION_SUBDIVISION_THRESHOLD: 0.5,
   HERMITE_TENSION: 0.0,
-  IMPULSE_RAMP_FRAMES: 2,             // Reduced from 3 for snappier response
+  IMPULSE_RAMP_FRAMES: 1,             // Reduced from 2 for 100% instant response
   COLLISION_ANGLE_FACTOR: 0.85,       // Increased from 0.8
   
   

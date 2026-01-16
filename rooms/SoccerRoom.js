@@ -28,6 +28,7 @@ export class SoccerRoom extends Room {
   timerInterval = null
   powerUpInterval = null
   currentTick = 0
+  ballHistory = [] // Circular buffer for lag compensation
   
   // Stats tracking
   lastTouchSessionId = null
@@ -415,33 +416,56 @@ export class SoccerRoom extends Room {
     const body = this.playerBodies.get(client.sessionId)
     if (!player || !body || !this.ballBody) return
 
+    const { impulseX, impulseY, impulseZ, timestamp } = data
     const playerPos = body.translation()
-    const ballPos = this.ballBody.translation()
+    
+    // Gold Standard: Lag Compensation
+    // Find the ball position at the time the client actually performed the kick
+    let validationPos = this.ballBody.translation()
+    if (timestamp && this.ballHistory.length > 0) {
+      // Find the closest historical state to the client's timestamp
+      let closest = this.ballHistory[0]
+      let minDiff = Math.abs(Date.now() - timestamp - (Date.now() - closest.timestamp))
+      
+      for (let i = 1; i < this.ballHistory.length; i++) {
+        const diff = Math.abs(Date.now() - timestamp - (Date.now() - this.ballHistory[i].timestamp))
+        if (diff < minDiff) {
+          minDiff = diff
+          closest = this.ballHistory[i]
+        } else {
+          // Since history is sorted by time, we can break early
+          break
+        }
+      }
+      
+      // If the closest state is within a reasonable window (e.g. 200ms), use it for validation
+      if (Math.abs(Date.now() - closest.timestamp - (Date.now() - timestamp)) < 200) {
+        validationPos = { x: closest.x, y: closest.y, z: closest.z }
+      }
+    }
 
-    // Distance check
-    const dx = ballPos.x - playerPos.x
-    const dy = ballPos.y - playerPos.y
-    const dz = ballPos.z - playerPos.z
+    // Distance check using rewound ball position
+    const dx = validationPos.x - playerPos.x
+    const dy = validationPos.y - playerPos.y
+    const dz = validationPos.z - playerPos.z
     const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
 
     if (dist < PHYSICS.KICK_RANGE) {
-      const { impulseX, impulseY, impulseZ } = data
       const kickMult = player.kickMult || 1
 
-      // Apply impulse with a slight vertical boost for better feel
-      // Note: impulse is already scaled by kickMult from client
+      // Apply impulse to the CURRENT ball body (Authority)
       this.ballBody.applyImpulse({ 
         x: impulseX, 
-        y: impulseY + PHYSICS.KICK_VERTICAL_BOOST, // Base vertical boost (not scaled by kickMult again)
+        y: impulseY + PHYSICS.KICK_VERTICAL_BOOST,
         z: impulseZ 
       }, true)
 
-      // Broadcast kick visual to all clients with impulse for prediction
+      // Broadcast kick visual to all clients
       this.broadcast('ball-kicked', { 
         playerId: client.sessionId,
         impulse: { 
           x: impulseX, 
-          y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult, // Visual boost scaled
+          y: impulseY + PHYSICS.KICK_VERTICAL_BOOST * kickMult,
           z: impulseZ 
         }
       })
@@ -731,6 +755,19 @@ export class SoccerRoom extends Room {
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
       this.state.ball.tick = this.currentTick
+
+      // Update Ball History for Lag Compensation
+      this.ballHistory.unshift({
+        tick: this.currentTick,
+        timestamp: Date.now(),
+        x: pos.x,
+        y: pos.y,
+        z: pos.z,
+        vx: vel.x,
+        vy: vel.y,
+        vz: vel.z
+      })
+      if (this.ballHistory.length > 120) this.ballHistory.pop() // Keep 2 seconds @ 60Hz
 
       // Limit angular velocity
       const angvel = this.ballBody.angvel()
