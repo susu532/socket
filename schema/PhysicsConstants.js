@@ -62,13 +62,13 @@ export const PHYSICS = {
   
   // Aggressive Visual Smoothing
   VISUAL_LAMBDA_MIN: 30,          // Snappier base response
-  VISUAL_LAMBDA_MAX: 50,          // Faster at speed
+  VISUAL_LAMBDA_MAX: 100,         // Faster at speed (was 50)
   VISUAL_OFFSET_DECAY: 2.5,       // Lambda for damp smoothing (was 0.35)
   ERROR_ACCUMULATION_FACTOR: 0.1, // Factor for reconciliation error spreading
   VERTICAL_VELOCITY_LERP: 0.5,    // Blending factor for vertical velocity reconciliation
   
   // Latency Compensation
-  MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
+  MAX_PREDICTION_TIME: 0.2, // 200ms max lookahead (was 150ms)
   RECONCILE_BLEND_FAST: 0.5,      // Faster blending when needed
   RECONCILE_BLEND_SLOW: 0.15,      // Less sluggish slow blend
 
@@ -76,7 +76,7 @@ export const PHYSICS = {
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
   VISUAL_TIMESTEP: 1 / 240,
   KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
-  TOUCH_RESPONSE_BOOST: 2.5,          // Increased from 2.0 for ultra-instant feel
+  TOUCH_RESPONSE_BOOST: 3.5,          // Increased from 2.5 for ultra-instant feel
   
   // Adaptive Reconciliation Tiers
   RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
@@ -84,15 +84,15 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 12,                 // Increased from 8 for 240Hz precision
-  CCD_ITERATIONS: 4,                  // Max CCD iterations per frame
+  SWEEP_SUBSTEPS: 16,                 // Increased from 12 for high-speed precision
+  CCD_ITERATIONS: 8,                  // Increased from 4 for robust collision detection
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
-  FIRST_TOUCH_SNAP_FACTOR: 0.98,      // Increased from 0.96 for instant visual snap
-  COLLISION_CONFIDENCE_BOOST: 3.0,    // Increased from 2.5 weighting
-  TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
-  MICRO_COLLISION_THRESHOLD: 0.005,   // 5ms threshold for micro-collision timing
+  FIRST_TOUCH_SNAP_FACTOR: 0.99,      // Increased from 0.98 for instant visual snap
+  COLLISION_CONFIDENCE_BOOST: 4.0,    // Increased from 3.0 weighting
+  TOUCH_VELOCITY_TRANSFER: 0.9,       // Aggressive player velocity transfer (was 0.8)
+  MICRO_COLLISION_THRESHOLD: 0.002,   // 2ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
   HERMITE_BLEND_RANGE_MIN: 0.5,
