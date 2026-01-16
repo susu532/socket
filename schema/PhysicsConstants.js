@@ -23,7 +23,6 @@ export const PHYSICS = {
   BALL_RESTITUTION: 0.75,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
-  BALL_FRICTION: 0.5,
   
   // Restitution
   GROUND_RESTITUTION: 0.9,
@@ -56,21 +55,14 @@ export const PHYSICS = {
   VELOCITY_SMOOTHING_SUB: 0.975,  // Adjusted for 120Hz sub-frames
   
   // Sub-frame Prediction
-  SUB_FRAME_RATE: 240,
-  SUB_FRAME_TIMESTEP: 1 / 240,
+  SUB_FRAME_RATE: 120,
+  SUB_FRAME_TIMESTEP: 1 / 120,
   INPUT_PREDICTION_LOOKAHEAD: 0.033, // 2 frames @ 60Hz
   
-  // Visual Smoothing & Reconciliation
-  VISUAL_OFFSET_DECAY: 2.5,       // Lambda for visual offset dampening
-  ERROR_ACCUMULATOR_DECAY: 0.9,   // Multiplier for error spreading decay
-  ERROR_ACCUMULATOR_GAIN: 0.1,    // How much of the error to accumulate per tick
-  INPUT_ANTICIPATION_FACTOR: 0.15, // Increased from 0.1 for more instant visual response
-  JUMP_RECONCILE_LERP: 0.5,       // Lerp factor for vertical velocity reconciliation
-  ERROR_SPREAD_SPEED: 6.0,        // Increased from 5.0 for faster error correction
-  
   // Aggressive Visual Smoothing
-  VISUAL_LAMBDA_MIN: 35,          // Increased from 30 for snappier base response
+  VISUAL_LAMBDA_MIN: 30,          // Snappier base response
   VISUAL_LAMBDA_MAX: 50,          // Faster at speed
+  VISUAL_OFFSET_DECAY: 0.35,      // Faster correction hiding
   
   // Latency Compensation
   MAX_PREDICTION_TIME: 0.15, // 150ms max lookahead
@@ -81,7 +73,7 @@ export const PHYSICS = {
   VISUAL_RATE: 240,                   // 240Hz visual interpolation  
   VISUAL_TIMESTEP: 1 / 240,
   KICK_TIMESTAMP_BUFFER: 0.033,       // 2 frames of kick timestamp lookahead
-  TOUCH_RESPONSE_BOOST: 3.0,          // Increased from 2.5 for even more immediate feedback
+  TOUCH_RESPONSE_BOOST: 1.5,          // Boost factor for first-touch
   
   // Adaptive Reconciliation Tiers
   RECONCILE_TIER_1_PING: 50,          // <50ms: aggressive local prediction
@@ -89,20 +81,18 @@ export const PHYSICS = {
   RECONCILE_TIER_3_PING: 300,         // >150ms: trust server more
   
   // Collision Prediction Tuning
-  SWEEP_SUBSTEPS: 12,                 // Increased from 8 for 240Hz precision
-  CCD_ITERATIONS: 4,                  // Max CCD iterations per frame
+  SWEEP_SUBSTEPS: 4,                  // Sub-frame sweep subdivisions
   INSTANT_TOUCH_THRESHOLD: 0.015,     // 15ms for instant visual response
 
   // Professional Touch Response
-  FIRST_TOUCH_SNAP_FACTOR: 0.98,      // Increased from 0.96 for near-instant visual snap
-  COLLISION_CONFIDENCE_BOOST: 2.6,    // Increased from 2.2 for higher local priority
-  TOUCH_VELOCITY_TRANSFER: 0.85,      // Increased from 0.7 for better momentum transfer
-  MICRO_COLLISION_THRESHOLD: 0.005,   // Reduced from 0.008 for tighter timing
+  FIRST_TOUCH_SNAP_FACTOR: 0.92,      // Near-instant visual snap on first contact
+  COLLISION_CONFIDENCE_BOOST: 1.8,    // Increase impulse confidence weighting
+  TOUCH_VELOCITY_TRANSFER: 0.7,       // Aggressive player velocity transfer
+  MICRO_COLLISION_THRESHOLD: 0.008,   // 8ms threshold for micro-collision timing
 
   // Reconciliation Smoothness
   HERMITE_BLEND_RANGE_MIN: 0.5,
   HERMITE_BLEND_RANGE_MAX: 2.0,
-  HERMITE_SMOOTHING_TENSION: 0.5,     // Catmull-Rom style tension
   VELOCITY_FADEOUT_RATE: 0.85,
   HEAD_STABILIZATION_LAMBDA: 40,      // Damping for head height stability
 
@@ -112,17 +102,9 @@ export const PHYSICS = {
   RECONCILE_IDLE_THRESHOLD: 0.08,     // Ball slow/stopped
 
   // Phase 22-26: Advanced Collision Refinement
-  COLLISION_SUBDIVISIONS: 8,          // Increased from 4 for 240Hz precision
+  COLLISION_SUBDIVISIONS: 4,
   COLLISION_SUBDIVISION_THRESHOLD: 0.5,
   HERMITE_TENSION: 0.0,
-  IMPULSE_RAMP_FRAMES: 2,             // Reduced from 3 for snappier response
-  COLLISION_ANGLE_FACTOR: 0.92,       // Increased from 0.85 for more direct hits
-  
-  
-  // Phase 32: Gold Standard Collision Tuning
-  COLLISION_COOLDOWN: 0.002,          // 2ms - near-instant re-collision
-  BASE_LOOKAHEAD: 0.02,               // 20ms base lookahead
-  MAX_LOOKAHEAD: 0.08,                // 80ms max lookahead
-  IMPULSE_PREDICTION_FACTOR: 1.0,     // Full trust in local prediction
-  COLLISION_LOCKOUT_DURATION: 0.08,   // Reduced from 0.12 for faster successive touches
+  IMPULSE_RAMP_FRAMES: 3,
+  COLLISION_ANGLE_FACTOR: 0.8,
 }
