@@ -216,7 +216,7 @@ export class SoccerRoom extends Room {
     // Depth: 5m (from 11.2 to 16.2), Center: 13.7, halfX: 2.5
     // Position Z: Opening is 6m (+/- 3), Wall center: 3 + 1 = 4
     const barrierPositions = [
-      [13.7, -3.0], [-13.7, -3.0], [13.7, 3.0], [-13.7, 3.0]
+      [13.7, -3.5], [-13.7, -3.5], [13.7, 3.5], [-13.7, 3.5]
     ]
     barrierPositions.forEach(([x, z]) => {
       // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=1 (2m thick)
