@@ -259,8 +259,9 @@ export class SoccerRoom extends Room {
       .setTranslation(spawnX, 0.1, 0)
 
     const body = this.world.createRigidBody(bodyDesc)
-
-    const collider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
+    
+    // Use cuboid for non-uniform Z-radius (wider reach)
+    const collider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS_Z)
       .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
@@ -1047,8 +1048,8 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Sphere Radius 2.0 - matches client's 5x scale)
-        const giantCollider = RAPIER.ColliderDesc.ball(2.0)
+        // Create GIANT collider (Cuboid with doubled Z-radius for consistency)
+        const giantCollider = RAPIER.ColliderDesc.cuboid(2.0, 2.0, 4.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
@@ -1097,8 +1098,8 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
-            .setTranslation(0, 0.2, 0)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS_Z)
+            .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
           
