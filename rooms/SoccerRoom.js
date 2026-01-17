@@ -752,11 +752,18 @@ export class SoccerRoom extends Room {
       let newPos = { x: pos.x, y: pos.y, z: pos.z }
       let newVel = { x: vel.x, y: vel.y, z: vel.z }
       
-      // Check if ball is in goal zone (don't enforce X bounds in goal area)
+      // Check if ball is in goal zone (don't enforce main X bounds in goal area)
       const inGoalZone = Math.abs(pos.z) < PHYSICS.GOAL_WIDTH / 2 && pos.y < PHYSICS.GOAL_HEIGHT
+      
+      // Check if ball is inside goal structure (past the goal line)
+      const GOAL_LINE_X = PHYSICS.GOAL_LINE_X || 10.8
+      const GOAL_BACK_X = 16.5 // Goal back wall position (before the 17.2 collider)
+      const GOAL_SIDE_Z = PHYSICS.GOAL_WIDTH / 2 // Goal side barrier (2.5m)
+      const isInGoalArea = Math.abs(pos.x) > GOAL_LINE_X && Math.abs(pos.x) < GOAL_BACK_X + WALL_BUFFER
       
       // X bounds (with goal gap)
       if (!inGoalZone) {
+        // Main arena walls
         if (pos.x > maxX) {
           newPos.x = maxX - 0.5
           newVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
@@ -766,17 +773,45 @@ export class SoccerRoom extends Room {
           newVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
           posChanged = true
         }
+      } else {
+        // === GOAL BACK WALL COLLISION ===
+        // Ball is in goal zone, enforce goal back wall
+        const goalBackLimit = GOAL_BACK_X - WALL_BUFFER
+        if (pos.x > goalBackLimit) {
+          newPos.x = goalBackLimit
+          newVel.x = -Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        } else if (pos.x < -goalBackLimit) {
+          newPos.x = -goalBackLimit
+          newVel.x = Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        }
       }
       
-      // Z bounds
-      if (pos.z > maxZ) {
-        newPos.z = maxZ - 0.5
-        newVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
-        posChanged = true
-      } else if (pos.z < -maxZ) {
-        newPos.z = -maxZ + 0.5
-        newVel.z = Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
-        posChanged = true
+      // === GOAL SIDE BARRIERS COLLISION ===
+      // When ball is inside goal area, enforce the goal side walls
+      if (isInGoalArea && pos.y < PHYSICS.GOAL_HEIGHT) {
+        const goalSideLimit = GOAL_SIDE_Z - WALL_BUFFER
+        if (pos.z > goalSideLimit) {
+          newPos.z = goalSideLimit
+          newVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        } else if (pos.z < -goalSideLimit) {
+          newPos.z = -goalSideLimit
+          newVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        }
+      } else {
+        // Z bounds (main arena walls)
+        if (pos.z > maxZ) {
+          newPos.z = maxZ - 0.5
+          newVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
+          posChanged = true
+        } else if (pos.z < -maxZ) {
+          newPos.z = -maxZ + 0.5
+          newVel.z = Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
+          posChanged = true
+        }
       }
       
       // Y bounds (floor and ceiling)
