@@ -116,9 +116,4 @@ export const PHYSICS = {
   PLAYER_BALL_APPROACH_BOOST: 1.4,     // Boost factor when approaching head-on
   RUNNING_COLLISION_SNAP: 0.9,         // Instant visual snap for running collisions
   COLLISION_VELOCITY_THRESHOLD: 3,     // Speed threshold for enhanced response
-
-  // Head Dribble
-  HEAD_DRIB_Y_MIN: 1.4,               // Min height relative to player feet
-  HEAD_DRIB_Y_MAX: 1.9,               // Max height relative to player feet
-  HEAD_DRIB_XZ_DIST: 0.6,             // Max horizontal distance from player center
 }

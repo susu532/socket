@@ -750,8 +750,6 @@ export class SoccerRoom extends Room {
         const scale = maxAv / Math.sqrt(avSq)
         this.ballBody.setAngvel({ x: angvel.x * scale, y: angvel.y * scale, z: angvel.z * scale }, true)
       }
-
-
     }
   }
 
@@ -833,29 +831,6 @@ export class SoccerRoom extends Room {
         const nx = dx / (dist || 0.1)
         const ny = dy / (dist || 0.1)
         const nz = dz / (dist || 0.1)
-        
-        // --- Head Dribble Mechanic ---
-        // If ball is on top of player head, match velocity
-        const horizontalDist = Math.sqrt(dx * dx + dz * dz)
-        const isOnHead = dy >= PHYSICS.HEAD_DRIB_Y_MIN && 
-                         dy <= PHYSICS.HEAD_DRIB_Y_MAX && 
-                         horizontalDist < PHYSICS.HEAD_DRIB_XZ_DIST
-
-        if (isOnHead) {
-          // Match horizontal velocity
-          const currentVel = this.ballBody.linvel()
-          this.ballBody.setLinvel({
-            x: player.vx || 0,
-            y: currentVel.y, // Keep vertical velocity (gravity/bounce)
-            z: player.vz || 0
-          }, true)
-
-          // Set ownership
-          this.state.ball.ownerSessionId = sessionId
-          
-          // Skip standard collision impulse to prevent bouncing off
-          return
-        }
 
         // Relative velocity
         const relVx = (player.vx || 0) - ballVel.x
@@ -881,11 +856,6 @@ export class SoccerRoom extends Room {
           // Calculate impulse magnitude
           let impulseMag = approachSpeed * PHYSICS.BALL_MASS * (1 + PHYSICS.PLAYER_BALL_RESTITUTION) * momentumFactor * approachBoost
           
-          // Tune down giant impulse to prevent ejection
-          if (player.giant) {
-            impulseMag *= 0.5
-          }
-
           // Ensure a minimum impulse for responsiveness
           impulseMag = Math.max(PHYSICS.PLAYER_BALL_IMPULSE_MIN, impulseMag)
 
