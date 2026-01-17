@@ -751,14 +751,7 @@ export class SoccerRoom extends Room {
         this.ballBody.setAngvel({ x: angvel.x * scale, y: angvel.y * scale, z: angvel.z * scale }, true)
       }
 
-      // Limit linear velocity (Prevent ejection)
-      const linvel = this.ballBody.linvel()
-      const maxLv = PHYSICS.MAX_BALL_VELOCITY
-      const lvSq = linvel.x ** 2 + linvel.y ** 2 + linvel.z ** 2
-      if (lvSq > maxLv ** 2) {
-        const scale = maxLv / Math.sqrt(lvSq)
-        this.ballBody.setLinvel({ x: linvel.x * scale, y: linvel.y * scale, z: linvel.z * scale }, true)
-      }
+
     }
   }
 
@@ -840,6 +833,29 @@ export class SoccerRoom extends Room {
         const nx = dx / (dist || 0.1)
         const ny = dy / (dist || 0.1)
         const nz = dz / (dist || 0.1)
+        
+        // --- Head Dribble Mechanic ---
+        // If ball is on top of player head, match velocity
+        const horizontalDist = Math.sqrt(dx * dx + dz * dz)
+        const isOnHead = dy >= PHYSICS.HEAD_DRIB_Y_MIN && 
+                         dy <= PHYSICS.HEAD_DRIB_Y_MAX && 
+                         horizontalDist < PHYSICS.HEAD_DRIB_XZ_DIST
+
+        if (isOnHead) {
+          // Match horizontal velocity
+          const currentVel = this.ballBody.linvel()
+          this.ballBody.setLinvel({
+            x: player.vx || 0,
+            y: currentVel.y, // Keep vertical velocity (gravity/bounce)
+            z: player.vz || 0
+          }, true)
+
+          // Set ownership
+          this.state.ball.ownerSessionId = sessionId
+          
+          // Skip standard collision impulse to prevent bouncing off
+          return
+        }
 
         // Relative velocity
         const relVx = (player.vx || 0) - ballVel.x
