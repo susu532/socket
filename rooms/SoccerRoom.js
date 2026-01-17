@@ -147,7 +147,7 @@ export class SoccerRoom extends Room {
       .setRestitution(PHYSICS.GROUND_RESTITUTION)
     this.world.createCollider(groundDesc)
 
-    // Back walls (Z axis)
+    // Back walls (Z axis) - Full width including goal area extensions
     const backWall1 = RAPIER.ColliderDesc.cuboid((pitchWidth + wallThickness * 2) / 2, wallHeight / 2, wallThickness / 2)
       .setTranslation(0, wallHeight / 2, -pitchDepth / 2 - wallThickness / 2)
       .setRestitution(PHYSICS.WALL_RESTITUTION)
@@ -158,13 +158,26 @@ export class SoccerRoom extends Room {
       .setRestitution(PHYSICS.WALL_RESTITUTION)
     this.world.createCollider(backWall2)
 
-    // Side walls with goal gaps
-    const sideWallHalfDepth = 7 / 2
+    // ===========================================
+    // ULTIMATE MASTER FIX: GOAL AREA PROTECTION
+    // ===========================================
+    // Goal dimensions:
+    // - Goal opening: Z from -2.5 to +2.5 (5m wide)
+    // - Goal line X: ±10.8
+    // - Goal posts at: (±10.8, ±2.5)
+    // - Goal back net: X = ±17.2
+    // - Arena side walls end at Z = ±3 (there's a gap from Z=3 to Z=10)
+    // - Side walls segments are at Z = ±6.5 with halfDepth 3.5, so they cover Z = 3 to 10
+    // ===========================================
+
+    // LAYER 1: Arena Side Walls (with goal gaps at center)
+    // These cover from Z = 3 to Z = 10 (end of arena)
+    const sideWallHalfDepth = 7 / 2  // 7m / 2 = 3.5, covers Z from 3 to 10
     const sideWallPositions = [
-      [-pitchWidth / 2 - wallThickness / 2, -6.5],
-      [-pitchWidth / 2 - wallThickness / 2, 6.5],
-      [pitchWidth / 2 + wallThickness / 2, -6.5],
-      [pitchWidth / 2 + wallThickness / 2, 6.5]
+      [-pitchWidth / 2 - wallThickness / 2, -6.5],  // Left side, back half
+      [-pitchWidth / 2 - wallThickness / 2, 6.5],   // Left side, front half
+      [pitchWidth / 2 + wallThickness / 2, -6.5],   // Right side, back half
+      [pitchWidth / 2 + wallThickness / 2, 6.5]     // Right side, front half
     ]
 
     sideWallPositions.forEach(([x, z]) => {
@@ -174,91 +187,124 @@ export class SoccerRoom extends Room {
       this.world.createCollider(desc)
     })
 
-    // Goal back walls (The "Net" back)
-    // Matching "big wall" thickness (2m) and height (10m)
-    const goalBackWallPositions = [[-17.2, 0], [17.2, 0]]
-    goalBackWallPositions.forEach(([x, z]) => {
-      // halfX=1 (2m thick), halfY=5 (10m high), halfZ=5 (10m wide to overlap sides)
-      const desc = RAPIER.ColliderDesc.cuboid(1, 5, 5)
+    // LAYER 2: Goal Mouth Barriers (THE KEY FIX)
+    // These fill the gap between the side walls (Z = ±3) and goal posts (Z = ±2.5)
+    // They are positioned AT the goal line X, extending slightly toward center
+    // to catch balls trying to slip through from outside
+    const goalMouthBarrierPositions = [
+      // Red team goal (X = -10.8 to -16)
+      [-12.5, -2.75],  // Between post (Z=-2.5) and side wall (Z=-3)
+      [-12.5, 2.75],   // Between post (Z=2.5) and side wall (Z=3)
+      // Blue team goal
+      [12.5, -2.75],
+      [12.5, 2.75]
+    ]
+    goalMouthBarrierPositions.forEach(([x, z]) => {
+      // halfX=2.0 (4m deep, from X=10.5 to X=14.5 to ensure no gap)
+      // halfY=5 (full height)
+      // halfZ=0.75 (1.5m thick to fully block the gap)
+      const desc = RAPIER.ColliderDesc.cuboid(2.0, 5, 0.75)
         .setTranslation(x, 5, z)
-        .setRestitution(PHYSICS.GOAL_RESTITUTION)
+        .setRestitution(PHYSICS.WALL_RESTITUTION)
       this.world.createCollider(desc)
     })
 
-    // Goal posts (approximated as boxes)
-    const postPositions = [
-      [-10.8, -2.5], [-10.8, 2.5], [10.8, -2.5], [10.8, 2.5]
+    // LAYER 3: Goal Posts (THICK solid boxes, not thin cylinders)
+    // These are the actual goal posts - made ultra thick to be unbreakable
+    const goalPostPositions = [
+      [-10.8, -2.5], [-10.8, 2.5],  // Red team posts
+      [10.8, -2.5], [10.8, 2.5]     // Blue team posts
     ]
-    postPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(2, 0.06)
-        .setTranslation(x, 2, z)
+    goalPostPositions.forEach(([x, z]) => {
+      // Using a thick box instead of thin cylinder
+      // halfX=0.3, halfY=2.2 (4.4m high post), halfZ=0.3 (thick)
+      const desc = RAPIER.ColliderDesc.cuboid(0.3, 2.2, 0.3)
+        .setTranslation(x, 2.2, z)
         .setRestitution(PHYSICS.POST_RESTITUTION)
       this.world.createCollider(desc)
     })
 
-    // Crossbars
+    // LAYER 4: Crossbars (thick boxes)
     const crossbarPositions = [[-10.8, 0], [10.8, 0]]
     crossbarPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cylinder(3, 0.02)
-        .setTranslation(x, 4, z)
-        .setRotation({ x: 0, y: 0, z: Math.sin(Math.PI / 4), w: Math.cos(Math.PI / 4) })
+      // halfX=0.15, halfY=0.15 (30cm thick), halfZ=2.8 (5.6m wide, covers goal + posts)
+      const desc = RAPIER.ColliderDesc.cuboid(0.15, 0.15, 2.8)
+        .setTranslation(x, 4.0, z)
         .setRestitution(PHYSICS.POST_RESTITUTION)
       this.world.createCollider(desc)
     })
 
-    // Ceiling
-    const ceiling = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.1, pitchDepth / 2)
-      .setTranslation(0, wallHeight, 0)
-    this.world.createCollider(ceiling)
-
-    // Goal side barriers (The "Net" sides)
-    // These form the left and right walls of each goal "box"
-    // Position: At Z = ±3.0 (edges of goal opening which is 6m wide, ±3m from center)
-    // X range: From arena edge (±10.8) to net back (±17.2), center at ±14.0, halfX=3.2
-    const barrierPositions = [
-      [14.0, -3.0], [-14.0, -3.0], [14.0, 3.0], [-14.0, 3.0]
-    ]
-    barrierPositions.forEach(([x, z]) => {
-      // halfX=3.2 (6.4m deep to fully cover goal depth), halfY=5 (10m high), halfZ=0.5 (1m thick)
-      const desc = RAPIER.ColliderDesc.cuboid(3.2, 5, 0.5)
+    // LAYER 5: Goal Back Walls (The \"Net\" back)
+    const goalBackWallPositions = [[-17.2, 0], [17.2, 0]]
+    goalBackWallPositions.forEach(([x, z]) => {
+      // halfX=1 (2m thick), halfY=5 (10m high), halfZ=4 (8m wide to overlap sides)
+      const desc = RAPIER.ColliderDesc.cuboid(1.0, 5, 4.0)
         .setTranslation(x, 5, z)
         .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
     })
 
-    // Goal top bars - prevents ball going over into goal area from above
-    // Position: At Y = 4.0 (goal height), spanning from goal line to net back
+    // LAYER 6: Goal Side Net Walls (inside goal area, from goal line to back)
+    // These form the left and right walls of each goal \"box\"
+    const goalSideNetPositions = [
+      // Red team goal (X from -10.8 to -17.2): center at -14.0
+      [-14.0, -2.5],  // Left side
+      [-14.0, 2.5],   // Right side
+      // Blue team goal
+      [14.0, -2.5],
+      [14.0, 2.5]
+    ]
+    goalSideNetPositions.forEach(([x, z]) => {
+      // halfX=3.3 (6.6m, from goal line to back with overlap)
+      // halfY=5 (10m high)
+      // halfZ=0.3 (60cm thick)
+      const desc = RAPIER.ColliderDesc.cuboid(3.3, 5, 0.3)
+        .setTranslation(x, 5, z)
+        .setRestitution(PHYSICS.GOAL_RESTITUTION)
+      this.world.createCollider(desc)
+    })
+
+    // LAYER 7: Goal Top Net (ceiling of goal area)
     const goalTopPositions = [[-14.0, 0], [14.0, 0]]
     goalTopPositions.forEach(([x, z]) => {
-      // halfX=3.2 (goal depth), halfY=1.0 (thick enough to catch), halfZ=3.0 (goal width +margin)
-      const desc = RAPIER.ColliderDesc.cuboid(3.2, 1.0, 3.0)
-        .setTranslation(x, 5.0, z)
+      // halfX=3.3 (goal depth), halfY=0.5, halfZ=2.8 (goal width)
+      const desc = RAPIER.ColliderDesc.cuboid(3.3, 0.5, 2.8)
+        .setTranslation(x, 4.3, z)
         .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
     })
 
-    // Goal area blockers (above goal to prevent ball escaping upward)
-    const blockerPositions = [[-10.8, 0], [10.8, 0]]
-    blockerPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cuboid(2.5, 4.5, 2.75)
-        .setTranslation(x, 8.7, z)
-        .setRestitution(PHYSICS.GOAL_RESTITUTION)
-      this.world.createCollider(desc)
-    })
-
-    // Goal corner posts - fill any remaining gaps between side walls and net barriers
-    // These are small cubes at the corners where the goal opening meets the arena wall
-    const cornerPostPositions = [
-      // Red team goal (X = -10.8)
-      [-10.8, -3.5], [-10.8, 3.5],
-      // Blue team goal (X = 10.8)  
-      [10.8, -3.5], [10.8, 3.5]
+    // LAYER 8: Extended Corner Blockers
+    // Extra thick corner protection at the junction between arena wall and goal area
+    const cornerBlockerPositions = [
+      // Red team corners
+      [-10.8, -3.25], [-10.8, 3.25],
+      // Blue team corners
+      [10.8, -3.25], [10.8, 3.25]
     ]
-    cornerPostPositions.forEach(([x, z]) => {
-      // Small cube to block corner gaps: halfX=0.5, halfY=2.5 (5m high), halfZ=0.5
-      const desc = RAPIER.ColliderDesc.cuboid(0.5, 2.5, 0.5)
+    cornerBlockerPositions.forEach(([x, z]) => {
+      // halfX=1.5 (3m extending into goal area)
+      // halfY=2.5 (5m high)  
+      // halfZ=0.75 (1.5m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(1.5, 2.5, 0.75)
         .setTranslation(x, 2.5, z)
         .setRestitution(PHYSICS.POST_RESTITUTION)
+      this.world.createCollider(desc)
+    })
+
+    // LAYER 9: Ceiling
+    const ceiling = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.5, pitchDepth / 2)
+      .setTranslation(0, wallHeight, 0)
+      .setRestitution(0.1)
+    this.world.createCollider(ceiling)
+
+    // LAYER 10: Above-Goal Blockers (prevent high balls from entering goal area from above)
+    const aboveGoalPositions = [[-10.8, 0], [10.8, 0]]
+    aboveGoalPositions.forEach(([x, z]) => {
+      // Large box above goal entrance
+      const desc = RAPIER.ColliderDesc.cuboid(2.0, 3.0, 3.0)
+        .setTranslation(x, 7.0, z)
+        .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
     })
   }
@@ -749,6 +795,7 @@ export class SoccerRoom extends Room {
 
     // 4. EXPLICIT BALL BOUNDARY ENFORCEMENT
     // This is a safety net to prevent ball from ever escaping the arena
+    // ULTIMATE MASTER FIX - Multi-layer boundary enforcement
     if (this.ballBody) {
       const pos = this.ballBody.translation()
       const vel = this.ballBody.linvel()
@@ -757,18 +804,49 @@ export class SoccerRoom extends Room {
       let correctedPos = { x: pos.x, y: pos.y, z: pos.z }
       let correctedVel = { x: vel.x, y: vel.y, z: vel.z }
 
-      // Arena bounds (slightly inside the walls)
-      const maxX = PHYSICS.ARENA_HALF_WIDTH - ballR
-      const maxZ = PHYSICS.ARENA_HALF_DEPTH - ballR
-      const goalHalfWidth = PHYSICS.GOAL_WIDTH / 2 - ballR
-      const goalLineX = PHYSICS.GOAL_LINE_X
-      const goalHeight = PHYSICS.GOAL_HEIGHT - ballR
-      const goalBackX = 17.0 // Back of the goal net
+      // Arena dimensions
+      const arenaHalfWidth = PHYSICS.ARENA_HALF_WIDTH  // 14.5
+      const arenaHalfDepth = PHYSICS.ARENA_HALF_DEPTH  // 9.5
+      const goalHalfWidth = PHYSICS.GOAL_WIDTH / 2     // 2.5
+      const goalLineX = PHYSICS.GOAL_LINE_X            // 10.8
+      const goalHeight = PHYSICS.GOAL_HEIGHT           // 4.0
+      const goalBackX = 17.0                           // Back of goal net
+      const sideWallZ = 3.0                            // Where side walls end (goal gap starts)
 
-      // Check if ball is in goal area (allowed zone)
-      const inGoalZone = Math.abs(pos.z) < goalHalfWidth && pos.y < goalHeight && Math.abs(pos.x) > goalLineX
+      // Safe boundaries (account for ball radius)
+      const maxX = arenaHalfWidth - ballR
+      const maxZ = arenaHalfDepth - ballR
+      const goalPostZ = goalHalfWidth                  // 2.5 (goal posts at Z = ±2.5)
 
-      // Z axis boundaries (always enforced)
+      // ===========================================
+      // CRITICAL FIX: Goal Mouth Gap Protection
+      // The gap is between Z = 2.5 (goal post) and Z = 3.0 (side wall)
+      // Ball can try to slip through this 0.5m gap from outside
+      // ===========================================
+      
+      // Check if ball is trying to go through the goal mouth gap
+      const isInGapZone = Math.abs(pos.z) > goalPostZ - ballR && Math.abs(pos.z) < sideWallZ + ballR
+      const isNearGoalLine = Math.abs(pos.x) > goalLineX - 2.0 && Math.abs(pos.x) < goalLineX + 2.0
+      const isBelowCrossbar = pos.y < goalHeight
+
+      if (isInGapZone && isNearGoalLine && isBelowCrossbar) {
+        // Ball is in the danger zone - block it from entering through the gap
+        // Push it back to outside the goal post line
+        if (Math.abs(pos.z) > goalPostZ) {
+          correctedPos.z = Math.sign(pos.z) * (sideWallZ + ballR)
+          correctedVel.z = -vel.z * PHYSICS.POST_RESTITUTION
+          needsCorrection = true
+        }
+      }
+
+      // Check if ball is legitimately inside goal area
+      const inGoalZone = Math.abs(pos.z) < goalPostZ - ballR && 
+                         pos.y < goalHeight && 
+                         Math.abs(pos.x) > goalLineX
+
+      // ===========================================
+      // Z axis boundaries
+      // ===========================================
       if (pos.z > maxZ) {
         correctedPos.z = maxZ
         correctedVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
@@ -779,9 +857,11 @@ export class SoccerRoom extends Room {
         needsCorrection = true
       }
 
+      // ===========================================
       // X axis boundaries
+      // ===========================================
       if (!inGoalZone) {
-        // Outside goal zone - enforce arena walls
+        // Outside goal zone - enforce arena walls AND goal posts
         if (pos.x > maxX) {
           correctedPos.x = maxX
           correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
@@ -789,6 +869,15 @@ export class SoccerRoom extends Room {
         } else if (pos.x < -maxX) {
           correctedPos.x = -maxX
           correctedVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
+          needsCorrection = true
+        }
+        
+        // CRITICAL: If ball is outside goal opening (Z > 2.5) but past goal line X,
+        // it's trying to go through the gap - push it back
+        if (Math.abs(pos.z) >= goalPostZ - ballR && Math.abs(pos.x) > goalLineX - ballR) {
+          const signX = Math.sign(pos.x)
+          correctedPos.x = signX * (goalLineX - ballR - 0.1)
+          correctedVel.x = -vel.x * PHYSICS.POST_RESTITUTION
           needsCorrection = true
         }
       } else {
@@ -804,27 +893,27 @@ export class SoccerRoom extends Room {
           needsCorrection = true
         }
 
-        // Goal side posts (enforce Z boundaries within goal area)
-        const goalPostZ = goalHalfWidth + 0.3 // Slightly wider than goal opening
-        if (pos.z > goalPostZ) {
-          correctedPos.z = goalPostZ
-          correctedVel.z = -Math.abs(vel.z) * PHYSICS.POST_RESTITUTION
+        // Goal side nets (prevent ball from exiting through sides of goal)
+        if (pos.z > goalPostZ - ballR) {
+          correctedPos.z = goalPostZ - ballR
+          correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
           needsCorrection = true
-        } else if (pos.z < -goalPostZ) {
-          correctedPos.z = -goalPostZ
-          correctedVel.z = Math.abs(vel.z) * PHYSICS.POST_RESTITUTION
+        } else if (pos.z < -(goalPostZ - ballR)) {
+          correctedPos.z = -(goalPostZ - ballR)
+          correctedVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
           needsCorrection = true
         }
       }
 
-      // Floor boundary (always)
+      // ===========================================
+      // Y axis boundaries (floor and ceiling)
+      // ===========================================
       if (pos.y < ballR) {
         correctedPos.y = ballR
         correctedVel.y = Math.abs(vel.y) * PHYSICS.GROUND_RESTITUTION
         needsCorrection = true
       }
 
-      // Ceiling boundary
       if (pos.y > PHYSICS.WALL_HEIGHT - ballR) {
         correctedPos.y = PHYSICS.WALL_HEIGHT - ballR
         correctedVel.y = -Math.abs(vel.y) * 0.1
@@ -963,27 +1052,34 @@ export class SoccerRoom extends Room {
         const isOnHead = dy > PHYSICS.BALL_STABILITY_HEIGHT_MIN && ny > 0.5
         const isLowVelocity = relSpeed < PHYSICS.BALL_STABILITY_VELOCITY_THRESHOLD
         const playerSpeed = Math.sqrt((player.vx || 0) ** 2 + (player.vz || 0) ** 2)
-        const isStationary = playerSpeed < 0.5
 
-        if (isOnHead && isLowVelocity && isStationary) {
+        if (isOnHead && isLowVelocity) {
           // STABILITY MODE: Ball is resting on player's head
-          // Apply damping instead of impulse to keep ball stable
-          const dampedVx = ballVel.x * PHYSICS.BALL_STABILITY_DAMPING
+          // Make ball move WITH the player (head carry)
+          
+          // Transfer player's horizontal velocity to ball
+          const carryVx = (player.vx || 0)
+          const carryVz = (player.vz || 0)
+          
+          // Dampen ball's own velocity and add player's movement
           const dampedVy = ballVel.y * PHYSICS.BALL_STABILITY_DAMPING
-          const dampedVz = ballVel.z * PHYSICS.BALL_STABILITY_DAMPING
           
-          this.ballBody.setLinvel({ x: dampedVx, y: dampedVy, z: dampedVz }, true)
+          // Set ball velocity to match player movement
+          this.ballBody.setLinvel({ x: carryVx, y: dampedVy, z: carryVz }, true)
           
-          // Gently push ball up to prevent sinking through player
-          const penetration = combinedRadius - dist
-          if (penetration > 0.01) {
-            const correction = {
-              x: ballPos.x + nx * penetration * 0.5,
-              y: ballPos.y + ny * penetration * 0.5,
-              z: ballPos.z + nz * penetration * 0.5
-            }
-            this.ballBody.setTranslation(correction, true)
+          // Position ball directly above player head
+          const targetX = playerPos.x
+          const targetY = playerPos.y + playerRadius + ballRadius + 0.05 // Small gap above head
+          const targetZ = playerPos.z
+          
+          // Smoothly correct position (prevent snapping)
+          const correctionStrength = 0.3
+          const newBallPos = {
+            x: ballPos.x + (targetX - ballPos.x) * correctionStrength,
+            y: Math.max(ballPos.y, targetY), // Prevent sinking
+            z: ballPos.z + (targetZ - ballPos.z) * correctionStrength
           }
+          this.ballBody.setTranslation(newBallPos, true)
           
           // Set ball ownership
           this.state.ball.ownerSessionId = sessionId
