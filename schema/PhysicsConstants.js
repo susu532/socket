@@ -122,4 +122,32 @@ export const PHYSICS = {
   BALL_STABILITY_HEIGHT_MIN: 0.3,          // Ball must be this much above player center
   BALL_STABILITY_DAMPING: 0.92,            // Dampen ball velocity when resting on head
   BALL_STABILITY_IMPULSE_CAP: 2.0,         // Max impulse when in stability mode
+
+  // === ENHANCED BALL PREDICTION ===
+  
+  // Weighted Velocity Estimation
+  VELOCITY_SAMPLE_COUNT: 4,          // Number of snapshots for velocity estimation
+  VELOCITY_SAMPLE_DECAY: 0.7,        // Exponential decay for older samples (0.7^n)
+
+  // Acceleration-Based Prediction
+  ACCEL_ESTIMATION_ENABLED: true,
+  ACCEL_DECAY_RATE: 0.85,            // Decay rate for acceleration influence
+  ACCEL_INFLUENCE: 0.4,              // How much acceleration affects prediction (0-1)
+
+  // Cubic Hermite Interpolation
+  USE_HERMITE_INTERPOLATION: true,
+  HERMITE_TANGENT_SCALE: 0.5,        // Velocity tangent scaling for spline
+
+  // Floor Physics Enhancement
+  FLOOR_ROLLING_FRICTION: 0.015,     // Additional friction when rolling on ground
+  FLOOR_CONTACT_THRESHOLD: 0.1,      // Height threshold for ground contact detection
+
+  // Adaptive Jitter Buffer
+  JITTER_BUFFER_MIN: 0.025,          // 25ms minimum buffer
+  JITTER_BUFFER_MAX: 0.12,           // 120ms maximum buffer
+  JITTER_ADAPTATION_RATE: 0.08,      // How fast buffer adapts to network conditions
+
+  // Rotation Prediction
+  ROTATION_FROM_VELOCITY: true,      // Calculate rotation from linear velocity
+  ROTATION_PREDICTION_SCALE: 2.5,    // Angular velocity = linear velocity / (radius * scale)
 }
