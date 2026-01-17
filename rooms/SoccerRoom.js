@@ -725,11 +725,80 @@ export class SoccerRoom extends Room {
 
     // Update ball state from physics
     if (this.ballBody) {
-      const pos = this.ballBody.translation()
-      const vel = this.ballBody.linvel()
+      let pos = this.ballBody.translation()
+      let vel = this.ballBody.linvel()
       const rot = this.ballBody.rotation()
 
-            this.state.ball.x = pos.x
+      // === BALL VELOCITY CLAMPING ===
+      // Prevent tunneling by capping ball velocity to MAX_BALL_VELOCITY
+      const velSq = vel.x * vel.x + vel.y * vel.y + vel.z * vel.z
+      const maxVel = PHYSICS.MAX_BALL_VELOCITY
+      if (velSq > maxVel * maxVel) {
+        const scale = maxVel / Math.sqrt(velSq)
+        const clampedVel = { x: vel.x * scale, y: vel.y * scale, z: vel.z * scale }
+        this.ballBody.setLinvel(clampedVel, true)
+        vel = clampedVel
+      }
+
+      // === HARD POSITION BOUNDS ENFORCEMENT ===
+      // Teleport ball back if it somehow escapes arena bounds (failsafe)
+      const WALL_BUFFER = PHYSICS.BALL_RADIUS + 0.1
+      const maxX = PHYSICS.ARENA_HALF_WIDTH + PHYSICS.WALL_THICKNESS / 2 - WALL_BUFFER
+      const maxZ = PHYSICS.ARENA_HALF_DEPTH + PHYSICS.WALL_THICKNESS / 2 - WALL_BUFFER
+      const minY = PHYSICS.BALL_RADIUS
+      const maxY = PHYSICS.WALL_HEIGHT - PHYSICS.BALL_RADIUS
+      
+      let posChanged = false
+      let newPos = { x: pos.x, y: pos.y, z: pos.z }
+      let newVel = { x: vel.x, y: vel.y, z: vel.z }
+      
+      // Check if ball is in goal zone (don't enforce X bounds in goal area)
+      const inGoalZone = Math.abs(pos.z) < PHYSICS.GOAL_WIDTH / 2 && pos.y < PHYSICS.GOAL_HEIGHT
+      
+      // X bounds (with goal gap)
+      if (!inGoalZone) {
+        if (pos.x > maxX) {
+          newPos.x = maxX - 0.5
+          newVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
+          posChanged = true
+        } else if (pos.x < -maxX) {
+          newPos.x = -maxX + 0.5
+          newVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
+          posChanged = true
+        }
+      }
+      
+      // Z bounds
+      if (pos.z > maxZ) {
+        newPos.z = maxZ - 0.5
+        newVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
+        posChanged = true
+      } else if (pos.z < -maxZ) {
+        newPos.z = -maxZ + 0.5
+        newVel.z = Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
+        posChanged = true
+      }
+      
+      // Y bounds (floor and ceiling)
+      if (pos.y < minY) {
+        newPos.y = minY
+        newVel.y = Math.abs(vel.y) * PHYSICS.GROUND_RESTITUTION
+        posChanged = true
+      } else if (pos.y > maxY) {
+        newPos.y = maxY
+        newVel.y = -Math.abs(vel.y) * PHYSICS.WALL_RESTITUTION
+        posChanged = true
+      }
+      
+      // Apply corrections if needed
+      if (posChanged) {
+        this.ballBody.setTranslation(newPos, true)
+        this.ballBody.setLinvel(newVel, true)
+        pos = newPos
+        vel = newVel
+      }
+
+      this.state.ball.x = pos.x
       this.state.ball.y = pos.y
       this.state.ball.z = pos.z
       this.state.ball.vx = vel.x
@@ -740,7 +809,6 @@ export class SoccerRoom extends Room {
       this.state.ball.rz = rot.z
       this.state.ball.rw = rot.w
       this.state.ball.tick = this.currentTick
-
 
       // Limit angular velocity
       const angvel = this.ballBody.angvel()
