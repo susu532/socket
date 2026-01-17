@@ -23,7 +23,7 @@ export const PHYSICS = {
   BALL_RESTITUTION: 0.75,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
-  MAX_BALL_VELOCITY: 35, // Cap to prevent tunneling/ejection
+  MAX_BALL_VELOCITY: 60, // Cap to prevent tunneling/ejection
   
   // Restitution
   GROUND_RESTITUTION: 0.9,

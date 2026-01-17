@@ -752,7 +752,7 @@ export class SoccerRoom extends Room {
       let newPos = { x: pos.x, y: pos.y, z: pos.z }
       let newVel = { x: vel.x, y: vel.y, z: vel.z }
       
-      // Check if ball is in goal zone (don't enforce X bounds in goal area)
+      // Check if ball is in goal zone
       const inGoalZone = Math.abs(pos.z) < PHYSICS.GOAL_WIDTH / 2 && pos.y < PHYSICS.GOAL_HEIGHT
       
       // X bounds (with goal gap)
@@ -765,6 +765,35 @@ export class SoccerRoom extends Room {
           newPos.x = -maxX + 0.5
           newVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
           posChanged = true
+        }
+      } else {
+        // HARD BOUNDS FOR GOAL AREA (The "Net" cage)
+        // Back wall is at +/- 16.2, side walls at +/- 2.5
+        const maxGoalX = 16.2 - WALL_BUFFER
+        const maxGoalZ = 2.5 - WALL_BUFFER
+        
+        // Back of the net
+        if (pos.x > maxGoalX) {
+          newPos.x = maxGoalX - 0.1
+          newVel.x = -Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        } else if (pos.x < -maxGoalX) {
+          newPos.x = -maxGoalX + 0.1
+          newVel.x = Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        }
+        
+        // Sides of the net (only if past the goal line)
+        if (Math.abs(pos.x) > PHYSICS.GOAL_LINE_X) {
+          if (pos.z > maxGoalZ) {
+            newPos.z = maxGoalZ - 0.1
+            newVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+            posChanged = true
+          } else if (pos.z < -maxGoalZ) {
+            newPos.z = -maxGoalZ + 0.1
+            newVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+            posChanged = true
+          }
         }
       }
       
