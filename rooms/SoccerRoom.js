@@ -212,15 +212,15 @@ export class SoccerRoom extends Room {
     this.world.createCollider(ceiling)
 
     // Goal side barriers (The "Net" sides)
-    // Aligns with goal posts at z = ±GOAL_WIDTH/2 (±2.5)
+    // Matching "big wall" thickness (2m) and height (10m)
     // Depth: 5m (from 11.2 to 16.2), Center: 13.7, halfX: 2.5
-    // Position Z: Barrier inner edge at z = ±2.5, halfZ = 0.5 (1m thick), so center at z = ±3.0
+    // Position Z: Opening is 6m (+/- 3), Wall center: 3 + 1 = 4
     const barrierPositions = [
-      [13.7, -3.0], [-13.7, -3.0], [13.7, 3.0], [-13.7, 3.0]
+      [13.7, -3.5], [-13.7, -3.5], [13.7, 3.5], [-13.7, 3.5]
     ]
     barrierPositions.forEach(([x, z]) => {
-      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=0.5 (1m thick)
-      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 0.5)
+      // halfX=2.5 (5m deep), halfY=5 (10m high), halfZ=1 (2m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(2.5, 5, 1)
         .setTranslation(x, 5, z)
         .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
@@ -752,7 +752,7 @@ export class SoccerRoom extends Room {
       let newPos = { x: pos.x, y: pos.y, z: pos.z }
       let newVel = { x: vel.x, y: vel.y, z: vel.z }
       
-      // Check if ball is in goal zone (don't enforce X bounds in goal area)
+      // Check if ball is in goal zone
       const inGoalZone = Math.abs(pos.z) < PHYSICS.GOAL_WIDTH / 2 && pos.y < PHYSICS.GOAL_HEIGHT
       
       // X bounds (with goal gap)
@@ -767,31 +767,33 @@ export class SoccerRoom extends Room {
           posChanged = true
         }
       } else {
-        // === NET COLLISION REINFORCEMENT ===
-        // Hard clamp when ball is inside the net area
-        const NET_BACK_X = 16.2 - WALL_BUFFER
-        const NET_SIDE_Z = 2.5 - WALL_BUFFER
-        const NET_TOP_Y = 4.0 - WALL_BUFFER
-
-        // Back of net
-        if (Math.abs(pos.x) > NET_BACK_X) {
-          newPos.x = Math.sign(pos.x) * NET_BACK_X
-          newVel.x = -Math.sign(pos.x) * Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+        // HARD BOUNDS FOR GOAL AREA (The "Net" cage)
+        // Back wall is at +/- 16.2, side walls at +/- 2.5
+        const maxGoalX = 16.2 - WALL_BUFFER
+        const maxGoalZ = 2.5 - WALL_BUFFER
+        
+        // Back of the net
+        if (pos.x > maxGoalX) {
+          newPos.x = maxGoalX - 0.1
+          newVel.x = -Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        } else if (pos.x < -maxGoalX) {
+          newPos.x = -maxGoalX + 0.1
+          newVel.x = Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
           posChanged = true
         }
-
-        // Sides of net (only if past the goal line to avoid snapping at the entrance)
-        if (Math.abs(pos.x) > PHYSICS.GOAL_LINE_X && Math.abs(pos.z) > NET_SIDE_Z) {
-          newPos.z = Math.sign(pos.z) * NET_SIDE_Z
-          newVel.z = -Math.sign(pos.z) * Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
-          posChanged = true
-        }
-
-        // Top of net
-        if (Math.abs(pos.x) > PHYSICS.GOAL_LINE_X && pos.y > NET_TOP_Y) {
-          newPos.y = NET_TOP_Y
-          newVel.y = -Math.abs(vel.y) * PHYSICS.GOAL_RESTITUTION
-          posChanged = true
+        
+        // Sides of the net (only if past the goal line)
+        if (Math.abs(pos.x) > PHYSICS.GOAL_LINE_X) {
+          if (pos.z > maxGoalZ) {
+            newPos.z = maxGoalZ - 0.1
+            newVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+            posChanged = true
+          } else if (pos.z < -maxGoalZ) {
+            newPos.z = -maxGoalZ + 0.1
+            newVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+            posChanged = true
+          }
         }
       }
       
