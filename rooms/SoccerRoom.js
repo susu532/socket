@@ -259,9 +259,8 @@ export class SoccerRoom extends Room {
       .setTranslation(spawnX, 0.1, 0)
 
     const body = this.world.createRigidBody(bodyDesc)
-    
-    // Use cuboid for non-uniform Z-radius (wider reach)
-    const collider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS_Z)
+
+    const collider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
       .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
@@ -767,6 +766,33 @@ export class SoccerRoom extends Room {
           newVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
           posChanged = true
         }
+      } else {
+        // === NET COLLISION REINFORCEMENT ===
+        // Hard clamp when ball is inside the net area
+        const NET_BACK_X = 16.2 - WALL_BUFFER
+        const NET_SIDE_Z = 2.5 - WALL_BUFFER
+        const NET_TOP_Y = 4.0 - WALL_BUFFER
+
+        // Back of net
+        if (Math.abs(pos.x) > NET_BACK_X) {
+          newPos.x = Math.sign(pos.x) * NET_BACK_X
+          newVel.x = -Math.sign(pos.x) * Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        }
+
+        // Sides of net (only if past the goal line to avoid snapping at the entrance)
+        if (Math.abs(pos.x) > PHYSICS.GOAL_LINE_X && Math.abs(pos.z) > NET_SIDE_Z) {
+          newPos.z = Math.sign(pos.z) * NET_SIDE_Z
+          newVel.z = -Math.sign(pos.z) * Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        }
+
+        // Top of net
+        if (Math.abs(pos.x) > PHYSICS.GOAL_LINE_X && pos.y > NET_TOP_Y) {
+          newPos.y = NET_TOP_Y
+          newVel.y = -Math.abs(vel.y) * PHYSICS.GOAL_RESTITUTION
+          posChanged = true
+        }
       }
       
       // Z bounds
@@ -1048,8 +1074,8 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Cuboid with doubled Z-radius for consistency)
-        const giantCollider = RAPIER.ColliderDesc.cuboid(2.0, 2.0, 4.0)
+        // Create GIANT collider (Sphere Radius 2.0 - matches client's 5x scale)
+        const giantCollider = RAPIER.ColliderDesc.ball(2.0)
           .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
@@ -1098,8 +1124,8 @@ export class SoccerRoom extends Room {
             this.world.removeCollider(collider, false)
           }
 
-          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS, PHYSICS.PLAYER_RADIUS_Z)
-            .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
+          const normalCollider = RAPIER.ColliderDesc.cuboid(PHYSICS.PLAYER_RADIUS, 0.2, PHYSICS.PLAYER_RADIUS)
+            .setTranslation(0, 0.2, 0)
             .setFriction(2.0)
             .setRestitution(0.0)
           

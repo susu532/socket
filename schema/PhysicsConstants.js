@@ -15,7 +15,6 @@ export const PHYSICS = {
   GROUND_Y: 0.1,
   GROUND_CHECK_EPSILON: 0.05,
   PLAYER_RADIUS: 0.4,
-  PLAYER_RADIUS_Z: 0.8, // Doubled Z-radius for wider reach
   PLAYER_HEIGHT: 0.8,
   
   // Ball
