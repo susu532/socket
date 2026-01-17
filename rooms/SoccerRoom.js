@@ -750,6 +750,15 @@ export class SoccerRoom extends Room {
         const scale = maxAv / Math.sqrt(avSq)
         this.ballBody.setAngvel({ x: angvel.x * scale, y: angvel.y * scale, z: angvel.z * scale }, true)
       }
+
+      // Limit linear velocity (Prevent ejection)
+      const linvel = this.ballBody.linvel()
+      const maxLv = PHYSICS.MAX_BALL_VELOCITY
+      const lvSq = linvel.x ** 2 + linvel.y ** 2 + linvel.z ** 2
+      if (lvSq > maxLv ** 2) {
+        const scale = maxLv / Math.sqrt(lvSq)
+        this.ballBody.setLinvel({ x: linvel.x * scale, y: linvel.y * scale, z: linvel.z * scale }, true)
+      }
     }
   }
 
@@ -856,6 +865,11 @@ export class SoccerRoom extends Room {
           // Calculate impulse magnitude
           let impulseMag = approachSpeed * PHYSICS.BALL_MASS * (1 + PHYSICS.PLAYER_BALL_RESTITUTION) * momentumFactor * approachBoost
           
+          // Tune down giant impulse to prevent ejection
+          if (player.giant) {
+            impulseMag *= 0.5
+          }
+
           // Ensure a minimum impulse for responsiveness
           impulseMag = Math.max(PHYSICS.PLAYER_BALL_IMPULSE_MIN, impulseMag)
 
