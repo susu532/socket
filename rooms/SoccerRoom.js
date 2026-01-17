@@ -817,17 +817,21 @@ export class SoccerRoom extends Room {
       if (!body) return
 
       const playerPos = body.translation()
-      const playerRadius = player.giant ? 2.0 : PHYSICS.PLAYER_RADIUS
-      const combinedRadius = ballRadius + playerRadius
+      const playerRadiusH = player.giant ? 2.0 : PHYSICS.PLAYER_RADIUS
+      const playerRadiusV = player.giant ? 1.2 : PHYSICS.PLAYER_RADIUS
+      const combinedRadiusH = ballRadius + playerRadiusH
+      const combinedRadiusV = ballRadius + playerRadiusV
 
       const dx = ballPos.x - playerPos.x
-      const dy = ballPos.y - playerPos.y
+      const dy = ballPos.y - (playerPos.y + playerRadiusV) // Center of the vertical span
       const dz = ballPos.z - playerPos.z
-      const distSq = dx * dx + dy * dy + dz * dz
+      
+      const horizontalDistSq = dx * dx + dz * dz
+      const isColliding = horizontalDistSq < combinedRadiusH * combinedRadiusH && Math.abs(dy) < combinedRadiusV
 
       // Check for collision
-      if (distSq < combinedRadius * combinedRadius) {
-        const dist = Math.sqrt(distSq)
+      if (isColliding) {
+        const dist = Math.sqrt(horizontalDistSq + dy * dy)
         const nx = dx / (dist || 0.1)
         const ny = dy / (dist || 0.1)
         const nz = dz / (dist || 0.1)
@@ -943,9 +947,9 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT collider (Sphere Radius 2.0 - matches client's 5x scale)
-        const giantCollider = RAPIER.ColliderDesc.ball(2.0)
-          .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
+        // Create GIANT collider (Cylinder Radius 2.0, Half-Height 1.2 - matches client's 5x width, 3x height)
+        const giantCollider = RAPIER.ColliderDesc.cylinder(1.2, 2.0)
+          .setTranslation(0, 1.2, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
         
