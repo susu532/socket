@@ -875,18 +875,14 @@ export class SoccerRoom extends Room {
         // Only apply impulse if player is moving toward the ball
         if (approachSpeed > 0) {
           const isRunning = playerSpeed > PHYSICS.COLLISION_VELOCITY_THRESHOLD
-          const isGiant = player.giant === true
 
           // Momentum transfer calculation
-          // GIANT FIX: Scale down momentum for giants (larger radius = gentler push)
-          const giantDampening = isGiant ? 0.25 : 1.0 // Giants push with 25% force
           const momentumFactor = isRunning ? 
-            (playerSpeed / 8) * PHYSICS.PLAYER_BALL_VELOCITY_TRANSFER * giantDampening : 0.5 * giantDampening
+            (playerSpeed / 8) * PHYSICS.PLAYER_BALL_VELOCITY_TRANSFER : 0.5
           
           // Approach boost for head-on collisions
-          // GIANT FIX: Disable approach boost for giants to prevent aggressive launches
           const approachDot = ((player.vx || 0) * nx + (player.vz || 0) * nz) / (playerSpeed + 0.001)
-          const approachBoost = isGiant ? 1.0 : (approachDot > 0.5 ? PHYSICS.PLAYER_BALL_APPROACH_BOOST : 1.0)
+          const approachBoost = approachDot > 0.5 ? PHYSICS.PLAYER_BALL_APPROACH_BOOST : 1.0
 
           // Calculate impulse magnitude
           let impulseMag = approachSpeed * PHYSICS.BALL_MASS * (1 + PHYSICS.PLAYER_BALL_RESTITUTION) * momentumFactor * approachBoost
@@ -894,21 +890,15 @@ export class SoccerRoom extends Room {
           // If ball is on head but player is moving, cap impulse to prevent launching
           if (isOnHead) {
             impulseMag = Math.min(impulseMag, PHYSICS.BALL_STABILITY_IMPULSE_CAP * playerSpeed)
-          } else if (isGiant) {
-            // GIANT FIX: Hard cap on giant impulse to prevent wall crashes
-            const GIANT_MAX_IMPULSE = 12.0 // Maximum impulse for giant collisions
-            impulseMag = Math.min(impulseMag, GIANT_MAX_IMPULSE)
           } else {
-            // Ensure a minimum impulse for responsiveness (only for non-head and non-giant collisions)
+            // Ensure a minimum impulse for responsiveness (only for non-head collisions)
             impulseMag = Math.max(PHYSICS.PLAYER_BALL_IMPULSE_MIN, impulseMag)
           }
 
           // Apply impulse to ball
-          // GIANT FIX: Reduce vertical boost for giants to prevent sky-high launches
-          const verticalBoost = isGiant ? 0.3 : 1.0
           const impulse = {
             x: nx * impulseMag,
-            y: isOnHead ? Math.max(0.1, ny * impulseMag) : Math.max(0.3, ny * impulseMag) + verticalBoost,
+            y: Math.max(0.5, ny * impulseMag) + 1.0, // Add some lift
             z: nz * impulseMag
           }
 
