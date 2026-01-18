@@ -898,7 +898,7 @@ export class SoccerRoom extends Room {
           // Apply impulse to ball
           const impulse = {
             x: nx * impulseMag,
-            y: Math.max(0.5, ny * impulseMag) + 5.0, // Add some lift
+            y: isOnHead ? Math.max(0.1, ny * impulseMag) : Math.max(0.5, ny * impulseMag) + 1.0,
             z: nz * impulseMag
           }
 
