@@ -933,27 +933,34 @@ export class SoccerRoom extends Room {
         const isOnHead = dy > PHYSICS.BALL_STABILITY_HEIGHT_MIN && ny > 0.5
         const isLowVelocity = relSpeed < PHYSICS.BALL_STABILITY_VELOCITY_THRESHOLD
         const playerSpeed = Math.sqrt((player.vx || 0) ** 2 + (player.vz || 0) ** 2)
-        const isStationary = playerSpeed < 0.5
 
-        if (isOnHead && isLowVelocity && isStationary) {
+        if (isOnHead && isLowVelocity) {
           // STABILITY MODE: Ball is resting on player's head
-          // Apply damping instead of impulse to keep ball stable
-          const dampedVx = ballVel.x * PHYSICS.BALL_STABILITY_DAMPING
+          // Make ball move WITH the player (head carry)
+          
+          // Transfer player's horizontal velocity to ball
+          const carryVx = (player.vx || 0)
+          const carryVz = (player.vz || 0)
+          
+          // Maintain vertical damping to prevent bouncing
           const dampedVy = ballVel.y * PHYSICS.BALL_STABILITY_DAMPING
-          const dampedVz = ballVel.z * PHYSICS.BALL_STABILITY_DAMPING
           
-          this.ballBody.setLinvel({ x: dampedVx, y: dampedVy, z: dampedVz }, true)
+          // Set ball velocity to match player movement
+          this.ballBody.setLinvel({ x: carryVx, y: dampedVy, z: carryVz }, true)
           
-          // Gently push ball up to prevent sinking through player
-          const penetration = combinedRadius - dist
-          if (penetration > 0.01) {
-            const correction = {
-              x: ballPos.x + nx * penetration * 0.5,
-              y: ballPos.y + ny * penetration * 0.5,
-              z: ballPos.z + nz * penetration * 0.5
-            }
-            this.ballBody.setTranslation(correction, true)
+          // Position ball directly above player head
+          const targetX = playerPos.x
+          const targetY = playerPos.y + playerRadius + ballRadius + 0.05 // Small gap above head
+          const targetZ = playerPos.z
+          
+          // Smoothly correct position (prevent snapping)
+          const correctionStrength = 0.3
+          const newBallPos = {
+            x: ballPos.x + (targetX - ballPos.x) * correctionStrength,
+            y: Math.max(ballPos.y, targetY), // Prevent sinking
+            z: ballPos.z + (targetZ - ballPos.z) * correctionStrength
           }
+          this.ballBody.setTranslation(newBallPos, true)
           
           // Set ball ownership
           this.state.ball.ownerSessionId = sessionId
