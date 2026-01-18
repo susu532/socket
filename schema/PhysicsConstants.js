@@ -110,7 +110,7 @@ export const PHYSICS = {
   COLLISION_ANGLE_FACTOR: 0.95,
 
   // Running Collision Enhancement
-  PLAYER_BALL_RESTITUTION: 0.85,       // Low bounce for ball stability on player head
+  PLAYER_BALL_RESTITUTION: 0.15,       // Low bounce for ball stability on player head
   PLAYER_BALL_VELOCITY_TRANSFER: 0.7,  // How much player momentum transfers to ball
   PLAYER_BALL_IMPULSE_MIN: 8,          // Minimum impulse to prevent dead touches
   PLAYER_BALL_APPROACH_BOOST: 1.4,     // Boost factor when approaching head-on

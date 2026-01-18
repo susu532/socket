@@ -212,56 +212,7 @@ export class SoccerRoom extends Room {
       .setTranslation(0, wallHeight, 0)
     this.world.createCollider(ceiling)
 
-    // Goal side barriers (The "Net" sides)
-    // These form the left and right walls of each goal "box"
-    // Position: At Z = ±3.0 (edges of goal opening which is 6m wide, ±3m from center)
-    // X range: From arena edge (±10.8) to net back (±17.2), center at ±14.0, halfX=3.2
-    const barrierPositions = [
-      [14.0, -3.0], [-14.0, -3.0], [14.0, 3.0], [-14.0, 3.0]
-    ]
-    barrierPositions.forEach(([x, z]) => {
-      // halfX=3.2 (6.4m deep to fully cover goal depth), halfY=5 (10m high), halfZ=0.5 (1m thick)
-      const desc = RAPIER.ColliderDesc.cuboid(3.2, 5, 0.5)
-        .setTranslation(x, 5, z)
-        .setRestitution(PHYSICS.GOAL_RESTITUTION)
-      this.world.createCollider(desc)
-    })
 
-    // Goal top bars - prevents ball going over into goal area from above
-    // Position: At Y = 4.0 (goal height), spanning from goal line to net back
-    const goalTopPositions = [[-14.0, 0], [14.0, 0]]
-    goalTopPositions.forEach(([x, z]) => {
-      // halfX=3.2 (goal depth), halfY=1.0 (thick enough to catch), halfZ=3.0 (goal width +margin)
-      const desc = RAPIER.ColliderDesc.cuboid(3.2, 1.0, 3.0)
-        .setTranslation(x, 5.0, z)
-        .setRestitution(PHYSICS.GOAL_RESTITUTION)
-      this.world.createCollider(desc)
-    })
-
-    // Goal area blockers (above goal to prevent ball escaping upward)
-    const blockerPositions = [[-10.8, 0], [10.8, 0]]
-    blockerPositions.forEach(([x, z]) => {
-      const desc = RAPIER.ColliderDesc.cuboid(2.5, 4.5, 2.75)
-        .setTranslation(x, 8.7, z)
-        .setRestitution(PHYSICS.GOAL_RESTITUTION)
-      this.world.createCollider(desc)
-    })
-
-    // Goal corner posts - fill any remaining gaps between side walls and net barriers
-    // These are small cubes at the corners where the goal opening meets the arena wall
-    const cornerPostPositions = [
-      // Red team goal (X = -10.8)
-      [-10.8, -3.5], [-10.8, 3.5],
-      // Blue team goal (X = 10.8)  
-      [10.8, -3.5], [10.8, 3.5]
-    ]
-    cornerPostPositions.forEach(([x, z]) => {
-      // Small cube to block corner gaps: halfX=0.5, halfY=2.5 (5m high), halfZ=0.5
-      const desc = RAPIER.ColliderDesc.cuboid(0.5, 2.5, 0.5)
-        .setTranslation(x, 2.5, z)
-        .setRestitution(PHYSICS.POST_RESTITUTION)
-      this.world.createCollider(desc)
-    })
   }
 
   createBall() {
@@ -1021,30 +972,31 @@ export class SoccerRoom extends Room {
 
         if (isOnHead && isLowVelocity) {
           // STABILITY MODE: Ball is resting on player's head
-          // Transfer player's horizontal velocity to the ball
-          const targetVx = (player.vx || 0) * PHYSICS.BALL_STABILITY_DAMPING
-          const targetVz = (player.vz || 0) * PHYSICS.BALL_STABILITY_DAMPING
+          // Make ball move WITH the player (head carry)
           
-          // Maintain vertical damping to prevent bouncing
+          // Match player's horizontal velocity exactly for perfect follow
+          const targetVx = (player.vx || 0)
+          const targetVz = (player.vz || 0)
+          
+          // Dampen vertical velocity to prevent bouncing
           const dampedVy = ballVel.y * PHYSICS.BALL_STABILITY_DAMPING
           
           this.ballBody.setLinvel({ x: targetVx, y: dampedVy, z: targetVz }, true)
           
-          // Gently push ball up and center it on head
-          const penetration = combinedRadius - dist
-          const correction = {
-            x: playerPos.x + nx * (combinedRadius + 0.05),
-            y: playerPos.y + ny * (combinedRadius + 0.05),
-            z: playerPos.z + nz * (combinedRadius + 0.05)
-          }
+          // Position ball directly above player head with a small offset
+          // We want it centered on (playerPos.x, playerPos.z)
+          const targetX = playerPos.x
+          const targetZ = playerPos.z
+          const targetY = playerPos.y + playerRadius + ballRadius + 0.02 // Tiny gap
           
-          // Smoothly interpolate position to prevent jitter
+          // Smoothly correct position to prevent jitter, but be firm
           const currentPos = this.ballBody.translation()
-          const lerpFactor = 0.2
+          const lerpFactor = 0.4 // Increased for firmer follow
+          
           this.ballBody.setTranslation({
-            x: currentPos.x + (correction.x - currentPos.x) * lerpFactor,
-            y: currentPos.y + (correction.y - currentPos.y) * lerpFactor,
-            z: currentPos.z + (correction.z - currentPos.z) * lerpFactor
+            x: currentPos.x + (targetX - currentPos.x) * lerpFactor,
+            y: Math.max(currentPos.y, targetY), // Prevent sinking into head
+            z: currentPos.z + (targetZ - currentPos.z) * lerpFactor
           }, true)
           
           // Set ball ownership
