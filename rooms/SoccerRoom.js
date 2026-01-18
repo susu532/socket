@@ -208,20 +208,19 @@ export class SoccerRoom extends Room {
 
     // Goal net side walls (prevent ball from escaping between posts and net sides)
     // These walls connect the goal posts to the back of the net on each side
+    // Goal net side walls (prevent ball from escaping between posts and net sides)
+    // Thin walls positioned just OUTSIDE the goal mouth (inner face at z=±2.5)
     const goalNetSideWalls = [
-      // Left goal (x = -10.8 to -17.2), top side (z = 2.5)
-      { x: (-10.8 - 17.2) / 2, z: 2.5, halfX: (17.2 - 10.8) / 2 },
-      // Left goal (x = -10.8 to -17.2), bottom side (z = -2.5)
-      { x: (-10.8 - 17.2) / 2, z: -2.5, halfX: (17.2 - 10.8) / 2 },
-      // Right goal (x = 10.8 to 17.2), top side (z = 2.5)
-      { x: (10.8 + 17.2) / 2, z: 2.5, halfX: (17.2 - 10.8) / 2 },
-      // Right goal (x = 10.8 to 17.2), bottom side (z = -2.5)
-      { x: (10.8 + 17.2) / 2, z: -2.5, halfX: (17.2 - 10.8) / 2 }
+      // Left goal (x = -10.8 to -17.2)
+      { x: (-10.8 - 17.2) / 2, z: 2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 }, // Top side (z=2.5 to 2.7)
+      { x: (-10.8 - 17.2) / 2, z: -2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 }, // Bottom side (z=-2.7 to -2.5)
+      // Right goal (x = 10.8 to 17.2)
+      { x: (10.8 + 17.2) / 2, z: 2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 }, // Top side
+      { x: (10.8 + 17.2) / 2, z: -2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 } // Bottom side
     ]
-    goalNetSideWalls.forEach(({ x, z, halfX }) => {
-      // halfX = half-width (extends from post to back), halfY = 5 (10m tall), halfZ = 1.0 (2m thick - prevents tunneling)
-      const desc = RAPIER.ColliderDesc.cuboid(halfX, 5, 1.0)
-        .setTranslation(x, 5, z)
+    goalNetSideWalls.forEach(({ x, z, halfX, halfZ }) => {
+      const desc = RAPIER.ColliderDesc.cuboid(halfX, 2, halfZ)
+        .setTranslation(x, 2, z)
         .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
     })
@@ -1080,14 +1079,14 @@ export class SoccerRoom extends Room {
     
     // Is the ball past the goal line (inside goal area)?
     const isPastGoalLine = absX > GOAL_LINE_X
-    // Is the ball in the goal net area (between posts and back)?
-    const isInGoalNetArea = isPastGoalLine && absX < GOAL_BACK_X
+    // Is the ball DEEP in the goal net (past the arena wall)?
+    const isDeepInGoal = absX > ARENA_HALF_WIDTH
     // Is the ball within the goal opening (between the posts)?
     const isInGoalOpening = absZ < GOAL_POST_Z && pos.y < GOAL_HEIGHT && isPastGoalLine
 
     // === Z AXIS ENFORCEMENT ===
-    if (isInGoalNetArea) {
-      // Ball is inside the goal net area - enforce goal side walls at z = ±2.5
+    if (isDeepInGoal) {
+      // Ball is deep in the goal extension (x > 14.5) - MUST be inside the net width
       const goalSideLimit = GOAL_POST_Z - ballR
       if (pos.z > goalSideLimit) {
         correctedPos.z = goalSideLimit
@@ -1099,7 +1098,7 @@ export class SoccerRoom extends Room {
         needsCorrection = true
       }
     } else {
-      // Ball is in main arena - enforce arena walls
+      // Ball is in main arena (or corner) - enforce arena walls
       if (pos.z > maxZ) {
         correctedPos.z = maxZ
         correctedVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
@@ -1112,7 +1111,7 @@ export class SoccerRoom extends Room {
     }
 
     // === X AXIS ENFORCEMENT ===
-    if (isInGoalOpening || isInGoalNetArea) {
+    if (isInGoalOpening || isDeepInGoal) {
       // Ball is allowed in goal area, but clamp to goal back wall
       const goalBackLimit = GOAL_BACK_X - ballR
       if (pos.x > goalBackLimit) {
