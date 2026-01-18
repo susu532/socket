@@ -1086,16 +1086,28 @@ export class SoccerRoom extends Room {
 
     // === Z AXIS ENFORCEMENT ===
     if (isDeepInGoal) {
-      // Ball is deep in the goal extension (x > 14.5) - MUST be inside the net width
+      // Ball is deep in the goal extension (x > 14.5)
+      // Check if it's actually inside the net width
       const goalSideLimit = GOAL_POST_Z - ballR
-      if (pos.z > goalSideLimit) {
-        correctedPos.z = goalSideLimit
-        correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+      
+      if (Math.abs(pos.z) > goalSideLimit) {
+        // Ball is deep in X but OUTSIDE the net in Z.
+        // This means it has penetrated the arena back wall (at x=14.5).
+        // Instead of clamping Z (which sucks it into the net), we clamp X back to the arena.
+        correctedPos.x = (pos.x > 0 ? maxX : -maxX)
+        correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
         needsCorrection = true
-      } else if (pos.z < -goalSideLimit) {
-        correctedPos.z = -goalSideLimit
-        correctedVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
-        needsCorrection = true
+      } else {
+        // Ball is inside the net width - enforce side walls
+        if (pos.z > goalSideLimit) {
+          correctedPos.z = goalSideLimit
+          correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+          needsCorrection = true
+        } else if (pos.z < -goalSideLimit) {
+          correctedPos.z = -goalSideLimit
+          correctedVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+          needsCorrection = true
+        }
       }
     } else {
       // Ball is in main arena (or corner) - enforce arena walls
