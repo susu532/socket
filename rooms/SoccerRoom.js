@@ -264,15 +264,9 @@ export class SoccerRoom extends Room {
       .setTranslation(spawnX, 0.1, 0)
 
     const body = this.world.createRigidBody(bodyDesc)
-    
-    // Capsule oriented along Z axis
-    // Half-height H = radius * (Z_MULT - 1)
-    const radius = PHYSICS.PLAYER_RADIUS
-    const halfHeight = radius * (PHYSICS.PLAYER_Z_MULT - 1)
-    const collider = RAPIER.ColliderDesc.capsule(halfHeight, radius)
-      .setTranslation(0, radius, 0)
-      // Rotate capsule to align with Z axis (Rapier capsules are Y-oriented by default)
-      .setRotation({ x: Math.sin(Math.PI/4), y: 0, z: 0, w: Math.cos(Math.PI/4) })
+
+    const collider = RAPIER.ColliderDesc.ball(PHYSICS.PLAYER_RADIUS)
+      .setTranslation(0, PHYSICS.PLAYER_RADIUS, 0)
       .setFriction(2.0)
       .setRestitution(0.0)
 
@@ -833,19 +827,12 @@ export class SoccerRoom extends Room {
 
       const playerPos = body.translation()
       const playerRadius = player.giant ? 2.0 : PHYSICS.PLAYER_RADIUS
-      const zMult = PHYSICS.PLAYER_Z_MULT
-      const halfHeight = playerRadius * (zMult - 1)
-
-      // Closest point on player's Z-oriented capsule segment to ball
-      const closestX = playerPos.x
-      const closestY = playerPos.y + playerRadius // Center of the capsule
-      const closestZ = Math.max(playerPos.z - halfHeight, Math.min(playerPos.z + halfHeight, ballPos.z))
-
-      const dx = ballPos.x - closestX
-      const dy = ballPos.y - closestY
-      const dz = ballPos.z - closestZ
-      const distSq = dx * dx + dy * dy + dz * dz
       const combinedRadius = ballRadius + playerRadius
+
+      const dx = ballPos.x - playerPos.x
+      const dy = ballPos.y - playerPos.y
+      const dz = ballPos.z - playerPos.z
+      const distSq = dx * dx + dy * dy + dz * dz
 
       // Check for collision
       if (distSq < combinedRadius * combinedRadius) {
@@ -1002,12 +989,9 @@ export class SoccerRoom extends Room {
           this.world.removeCollider(collider, false)
         }
 
-        // Create GIANT capsule collider (Z-stretched)
-        const radius = 2.0
-        const halfHeight = radius * (PHYSICS.PLAYER_Z_MULT - 1)
-        const giantCollider = RAPIER.ColliderDesc.capsule(halfHeight, radius)
-          .setTranslation(0, radius, 0) // Shift up so it doesn't clip ground
-          .setRotation({ x: Math.sin(Math.PI/4), y: 0, z: 0, w: Math.cos(Math.PI/4) })
+        // Create GIANT collider (Sphere Radius 2.0 - matches client's 5x scale)
+        const giantCollider = RAPIER.ColliderDesc.ball(2.0)
+          .setTranslation(0, 2.0, 0) // Shift up so it doesn't clip ground
           .setFriction(2.0)
           .setRestitution(0.0)
         
