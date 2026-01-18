@@ -206,6 +206,26 @@ export class SoccerRoom extends Room {
       this.world.createCollider(desc)
     })
 
+    // Goal net side walls (prevent ball from escaping between posts and net sides)
+    // These walls connect the goal posts to the back of the net on each side
+    const goalNetSideWalls = [
+      // Left goal (x = -10.8 to -17.2), top side (z = 2.5)
+      { x: (-10.8 - 17.2) / 2, z: 2.5, halfX: (17.2 - 10.8) / 2 },
+      // Left goal (x = -10.8 to -17.2), bottom side (z = -2.5)
+      { x: (-10.8 - 17.2) / 2, z: -2.5, halfX: (17.2 - 10.8) / 2 },
+      // Right goal (x = 10.8 to 17.2), top side (z = 2.5)
+      { x: (10.8 + 17.2) / 2, z: 2.5, halfX: (17.2 - 10.8) / 2 },
+      // Right goal (x = 10.8 to 17.2), bottom side (z = -2.5)
+      { x: (10.8 + 17.2) / 2, z: -2.5, halfX: (17.2 - 10.8) / 2 }
+    ]
+    goalNetSideWalls.forEach(({ x, z, halfX }) => {
+      // halfX = half-width (extends from post to back), halfY = 2 (4m tall), halfZ = 0.3 (0.6m thick)
+      const desc = RAPIER.ColliderDesc.cuboid(halfX, 2, 0.3)
+        .setTranslation(x, 2, z)
+        .setRestitution(PHYSICS.GOAL_RESTITUTION)
+      this.world.createCollider(desc)
+    })
+
     // Ceiling
     const ceiling = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.1, pitchDepth / 2)
       .setTranslation(0, wallHeight, 0)
