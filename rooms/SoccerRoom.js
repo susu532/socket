@@ -836,44 +836,13 @@ export class SoccerRoom extends Room {
         const relVx = (player.vx || 0) - ballVel.x
         const relVy = (player.vy || 0) - ballVel.y
         const relVz = (player.vz || 0) - ballVel.z
-        const relSpeed = Math.sqrt(relVx * relVx + relVy * relVy + relVz * relVz)
 
         // Approach speed (dot product of relative velocity and normal)
         const approachSpeed = relVx * nx + relVy * ny + relVz * nz
 
-        // Check for ball stability mode (ball resting on top of player)
-        const isOnHead = dy > PHYSICS.BALL_STABILITY_HEIGHT_MIN && ny > 0.5
-        const isLowVelocity = relSpeed < PHYSICS.BALL_STABILITY_VELOCITY_THRESHOLD
-        const playerSpeed = Math.sqrt((player.vx || 0) ** 2 + (player.vz || 0) ** 2)
-        const isStationary = playerSpeed < 0.5
-
-        if (isOnHead && isLowVelocity && isStationary) {
-          // STABILITY MODE: Ball is resting on player's head
-          // Apply damping instead of impulse to keep ball stable
-          const dampedVx = ballVel.x * PHYSICS.BALL_STABILITY_DAMPING
-          const dampedVy = ballVel.y * PHYSICS.BALL_STABILITY_DAMPING
-          const dampedVz = ballVel.z * PHYSICS.BALL_STABILITY_DAMPING
-          
-          this.ballBody.setLinvel({ x: dampedVx, y: dampedVy, z: dampedVz }, true)
-          
-          // Gently push ball up to prevent sinking through player
-          const penetration = combinedRadius - dist
-          if (penetration > 0.01) {
-            const correction = {
-              x: ballPos.x + nx * penetration * 0.5,
-              y: ballPos.y + ny * penetration * 0.5,
-              z: ballPos.z + nz * penetration * 0.5
-            }
-            this.ballBody.setTranslation(correction, true)
-          }
-          
-          // Set ball ownership
-          this.state.ball.ownerSessionId = sessionId
-          return // Skip normal impulse logic
-        }
-
         // Only apply impulse if player is moving toward the ball
         if (approachSpeed > 0) {
+          const playerSpeed = Math.sqrt((player.vx || 0) ** 2 + (player.vz || 0) ** 2)
           const isRunning = playerSpeed > PHYSICS.COLLISION_VELOCITY_THRESHOLD
 
           // Momentum transfer calculation
@@ -887,18 +856,13 @@ export class SoccerRoom extends Room {
           // Calculate impulse magnitude
           let impulseMag = approachSpeed * PHYSICS.BALL_MASS * (1 + PHYSICS.PLAYER_BALL_RESTITUTION) * momentumFactor * approachBoost
           
-          // If ball is on head but player is moving, cap impulse to prevent launching
-          if (isOnHead) {
-            impulseMag = Math.min(impulseMag, PHYSICS.BALL_STABILITY_IMPULSE_CAP * playerSpeed)
-          } else {
-            // Ensure a minimum impulse for responsiveness (only for non-head collisions)
-            impulseMag = Math.max(PHYSICS.PLAYER_BALL_IMPULSE_MIN, impulseMag)
-          }
+          // Ensure a minimum impulse for responsiveness
+          impulseMag = Math.max(PHYSICS.PLAYER_BALL_IMPULSE_MIN, impulseMag)
 
           // Apply impulse to ball
           const impulse = {
             x: nx * impulseMag,
-            y: isOnHead ? Math.max(0.1, ny * impulseMag) : Math.max(0.5, ny * impulseMag) + 1.0,
+            y: Math.max(0.5, ny * impulseMag) + 1.0, // Add some lift
             z: nz * impulseMag
           }
 
