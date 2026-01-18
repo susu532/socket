@@ -23,6 +23,7 @@ export const PHYSICS = {
   BALL_RESTITUTION: 0.75,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
+  MAX_BALL_VELOCITY: 60, // Cap to prevent tunneling/ejection
   
   // Restitution
   GROUND_RESTITUTION: 0.9,
@@ -109,10 +110,16 @@ export const PHYSICS = {
   COLLISION_ANGLE_FACTOR: 0.95,
 
   // Running Collision Enhancement
-  PLAYER_BALL_RESTITUTION: 0.85,       // Bouncy response when running into ball
+  PLAYER_BALL_RESTITUTION: 0.85,       // Low bounce for ball stability on player head
   PLAYER_BALL_VELOCITY_TRANSFER: 0.7,  // How much player momentum transfers to ball
   PLAYER_BALL_IMPULSE_MIN: 8,          // Minimum impulse to prevent dead touches
   PLAYER_BALL_APPROACH_BOOST: 1.4,     // Boost factor when approaching head-on
   RUNNING_COLLISION_SNAP: 0.9,         // Instant visual snap for running collisions
   COLLISION_VELOCITY_THRESHOLD: 3,     // Speed threshold for enhanced response
+
+  // Ball Head Stability (for balancing ball on head)
+  BALL_STABILITY_VELOCITY_THRESHOLD: 1.5,  // Below this relative velocity, apply stability
+  BALL_STABILITY_HEIGHT_MIN: 0.3,          // Ball must be this much above player center
+  BALL_STABILITY_DAMPING: 0.92,            // Dampen ball velocity when resting on head
+  BALL_STABILITY_IMPULSE_CAP: 2.0,         // Max impulse when in stability mode
 }
