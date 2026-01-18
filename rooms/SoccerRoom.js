@@ -62,6 +62,9 @@ export class SoccerRoom extends Room {
       registerPrivateRoom(this.roomId, this.privateCode)
     }
 
+    // Set public/private state
+    this.isPublic = options.isPublic !== false
+    
     this.setMetadata({
       isPublic: this.isPublic,
       map: options?.map || this.state.selectedMap || null,
