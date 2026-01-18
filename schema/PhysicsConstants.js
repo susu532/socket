@@ -124,6 +124,6 @@ export const PHYSICS = {
   BALL_STABILITY_IMPULSE_CAP: 2.0,         // Max impulse when in stability mode
 
   // Collision Lift
-  COLLISION_LIFT: 2.5,                     // Upwards lift when running into ball
-  COLLISION_LIFT_GIANT: 4.0,               // Upwards lift for giant players
+  COLLISION_LIFT: 4.0,                     // Upwards lift when running into ball
+  COLLISION_LIFT_GIANT: 6.5,               // Upwards lift for giant players
 }
