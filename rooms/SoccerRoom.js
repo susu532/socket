@@ -219,8 +219,17 @@ export class SoccerRoom extends Room {
       { x: (10.8 + 17.2) / 2, z: -2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 } // Bottom side
     ]
     goalNetSideWalls.forEach(({ x, z, halfX, halfZ }) => {
-      const desc = RAPIER.ColliderDesc.cuboid(halfX, 2, halfZ)
-        .setTranslation(x, 2, z)
+      const desc = RAPIER.ColliderDesc.cuboid(halfX, 13, halfZ)
+        .setTranslation(x, 13, z)
+        .setRestitution(PHYSICS.GOAL_RESTITUTION)
+      this.world.createCollider(desc)
+    })
+
+    // Goal net ceiling (prevent ball from escaping over crossbar)
+    const goalNetCeilingPositions = [-14.0, 14.0] // ±(10.8 + 17.2) / 2
+    goalNetCeilingPositions.forEach(x => {
+      const desc = RAPIER.ColliderDesc.cuboid(3.2, 5, 2.5) // halfX=3.2, halfY=5 (10m tall), halfZ=2.5
+        .setTranslation(x, 9.1, 0) // Starts at 4.1, extends to 14.1
         .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
     })
