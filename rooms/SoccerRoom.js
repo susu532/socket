@@ -85,9 +85,10 @@ export class SoccerRoom extends Room {
       this.isPublic = false
       this.setMetadata({ ...this.metadata, isPublic: false })
       
+      // Delay bot creation slightly to ensure room is ready
       this.clock.setTimeout(() => {
         this.createBot(options.difficulty || 'medium')
-      }, 1000)
+      }, 500)
     }
 
     // Physics world
