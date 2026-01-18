@@ -158,14 +158,13 @@ export class SoccerRoom extends Room {
       .setRestitution(PHYSICS.WALL_RESTITUTION)
     this.world.createCollider(backWall2)
 
-    // LAYER 1: Arena Side Walls (with goal gaps at center)
-    // These cover from Z = 2.5 to Z = 10 (end of arena)
-    const sideWallHalfDepth = 7.5 / 2  // 7.5m / 2 = 3.75, covers Z from 2.5 to 10
+    // Side walls with goal gaps
+    const sideWallHalfDepth = 7 / 2
     const sideWallPositions = [
-      [-pitchWidth / 2 - wallThickness / 2, -6.25],  // Left side, back half
-      [-pitchWidth / 2 - wallThickness / 2, 6.25],   // Left side, front half
-      [pitchWidth / 2 + wallThickness / 2, -6.25],   // Right side, back half
-      [pitchWidth / 2 + wallThickness / 2, 6.25]     // Right side, front half
+      [-pitchWidth / 2 - wallThickness / 2, -6.5],
+      [-pitchWidth / 2 - wallThickness / 2, 6.5],
+      [pitchWidth / 2 + wallThickness / 2, -6.5],
+      [pitchWidth / 2 + wallThickness / 2, 6.5]
     ]
 
     sideWallPositions.forEach(([x, z]) => {
@@ -211,7 +210,6 @@ export class SoccerRoom extends Room {
     const ceiling = RAPIER.ColliderDesc.cuboid(pitchWidth / 2, 0.1, pitchDepth / 2)
       .setTranslation(0, wallHeight, 0)
     this.world.createCollider(ceiling)
-
 
   }
 
@@ -701,7 +699,6 @@ export class SoccerRoom extends Room {
 
     // 4. EXPLICIT BALL BOUNDARY ENFORCEMENT
     // This is a safety net to prevent ball from ever escaping the arena
-    // ULTIMATE MASTER FIX - Multi-layer boundary enforcement
     if (this.ballBody) {
       const pos = this.ballBody.translation()
       const vel = this.ballBody.linvel()
@@ -710,130 +707,77 @@ export class SoccerRoom extends Room {
       let correctedPos = { x: pos.x, y: pos.y, z: pos.z }
       let correctedVel = { x: vel.x, y: vel.y, z: vel.z }
 
-      // Arena dimensions
-      const arenaHalfWidth = PHYSICS.ARENA_HALF_WIDTH  // 14.5
-      const arenaHalfDepth = PHYSICS.ARENA_HALF_DEPTH  // 9.5
-      const goalHalfWidth = PHYSICS.GOAL_WIDTH / 2     // 2.5
-      const goalLineX = PHYSICS.GOAL_LINE_X            // 10.8
-      const goalHeight = PHYSICS.GOAL_HEIGHT           // 4.0
-      const goalBackX = 17.0                           // Back of goal net
-      const sideWallZ = 2.5                            // Where side walls end (goal gap starts)
+      // Arena bounds (slightly inside the walls)
+      const maxX = PHYSICS.ARENA_HALF_WIDTH - ballR
+      const maxZ = PHYSICS.ARENA_HALF_DEPTH - ballR
+      const goalHalfWidth = PHYSICS.GOAL_WIDTH / 2 - ballR
+      const goalLineX = PHYSICS.GOAL_LINE_X
+      const goalHeight = PHYSICS.GOAL_HEIGHT - ballR
+      const goalBackX = 17.0 // Back of the goal net
 
-      // Safe boundaries (account for ball radius)
-      const maxX = arenaHalfWidth - ballR
-      const maxZ = arenaHalfDepth - ballR
-      const goalPostZ = goalHalfWidth                  // 2.5 (goal posts at Z = ±2.5)
+      // Check if ball is in goal area (allowed zone)
+      const inGoalZone = Math.abs(pos.z) < goalHalfWidth && pos.y < goalHeight && Math.abs(pos.x) > goalLineX
 
-      // ===========================================
-      // 1. THICK BOUNDARY ENFORCEMENT (Logic Walls)
-      // ===========================================
-      
-      // CRITICAL FIX: Goal Mouth Gap Protection
-      // The gap is between Z = 2.5 (goal post) and Z = 3.0 (side wall)
-      // Ball can try to slip through this 0.5m gap from outside
-      const isInGapZone = Math.abs(pos.z) > goalPostZ - ballR && Math.abs(pos.z) < sideWallZ + ballR
-      const isNearGoalLine = Math.abs(pos.x) > goalLineX - 2.0 && Math.abs(pos.x) < goalLineX + 2.0
-      const isBelowCrossbar = pos.y < goalHeight
-
-      if (isInGapZone && isNearGoalLine && isBelowCrossbar) {
-        // Ball is in the danger zone - block it from entering through the gap
-        if (Math.abs(pos.z) > goalPostZ) {
-          correctedPos.z = Math.sign(pos.z) * (sideWallZ + ballR + 0.1)
-          correctedVel.z = -Math.abs(vel.z) * PHYSICS.POST_RESTITUTION
-          needsCorrection = true
-        }
-      }
-
-      // Check if ball is legitimately inside goal area
-      const inGoalZone = Math.abs(pos.z) < goalPostZ - ballR && 
-                         pos.y < goalHeight && 
-                         Math.abs(pos.x) > goalLineX
-
-      // Z axis boundaries (Thick check: if past boundary OR moving fast towards it)
-      const zBuffer = 0.5
-      if (pos.z > maxZ || (pos.z > maxZ - zBuffer && vel.z > 5)) {
-        correctedPos.z = maxZ - 0.05
+      // Z axis boundaries (always enforced)
+      if (pos.z > maxZ) {
+        correctedPos.z = maxZ
         correctedVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
         needsCorrection = true
-      } else if (pos.z < -maxZ || (pos.z < -maxZ + zBuffer && vel.z < -5)) {
-        correctedPos.z = -maxZ + 0.05
+      } else if (pos.z < -maxZ) {
+        correctedPos.z = -maxZ
         correctedVel.z = Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
         needsCorrection = true
       }
 
       // X axis boundaries
       if (!inGoalZone) {
-        // Outside goal zone - enforce arena walls AND goal posts
-        const xBuffer = 0.5
-        if (pos.x > maxX || (pos.x > maxX - xBuffer && vel.x > 5)) {
-          correctedPos.x = maxX - 0.05
+        // Outside goal zone - enforce arena walls
+        if (pos.x > maxX) {
+          correctedPos.x = maxX
           correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
           needsCorrection = true
-        } else if (pos.x < -maxX || (pos.x < -maxX + xBuffer && vel.x < -5)) {
-          correctedPos.x = -maxX + 0.05
+        } else if (pos.x < -maxX) {
+          correctedPos.x = -maxX
           correctedVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
-          needsCorrection = true
-        }
-        
-        // CRITICAL: If ball is outside goal opening (Z > 2.5) but past goal line X,
-        // it's trying to go through the gap - push it back
-        if (Math.abs(pos.z) >= goalPostZ - ballR && Math.abs(pos.x) > goalLineX - ballR) {
-          const signX = Math.sign(pos.x)
-          correctedPos.x = signX * (goalLineX - ballR - 0.2)
-          correctedVel.x = -Math.abs(vel.x) * PHYSICS.POST_RESTITUTION
           needsCorrection = true
         }
       } else {
         // Inside goal zone - enforce goal back and side barriers
-        const goalBuffer = 0.3
         // Goal net back wall
-        if (pos.x > goalBackX - ballR || (pos.x > goalBackX - ballR - goalBuffer && vel.x > 5)) {
-          correctedPos.x = goalBackX - ballR - 0.05
+        if (pos.x > goalBackX - ballR) {
+          correctedPos.x = goalBackX - ballR
           correctedVel.x = -Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
           needsCorrection = true
-        } else if (pos.x < -(goalBackX - ballR) || (pos.x < -(goalBackX - ballR) + goalBuffer && vel.x < -5)) {
-          correctedPos.x = -(goalBackX - ballR) + 0.05
+        } else if (pos.x < -(goalBackX - ballR)) {
+          correctedPos.x = -(goalBackX - ballR)
           correctedVel.x = Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
           needsCorrection = true
         }
 
-        // Goal side nets (prevent ball from exiting through sides of goal)
-        if (pos.z > goalPostZ - ballR || (pos.z > goalPostZ - ballR - goalBuffer && vel.z > 5)) {
-          correctedPos.z = goalPostZ - ballR - 0.05
-          correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+        // Goal side posts (enforce Z boundaries within goal area)
+        const goalPostZ = goalHalfWidth + 0.3 // Slightly wider than goal opening
+        if (pos.z > goalPostZ) {
+          correctedPos.z = goalPostZ
+          correctedVel.z = -Math.abs(vel.z) * PHYSICS.POST_RESTITUTION
           needsCorrection = true
-        } else if (pos.z < -(goalPostZ - ballR) || (pos.z < -(goalPostZ - ballR) + goalBuffer && vel.z < -5)) {
-          correctedPos.z = -(goalPostZ - ballR) + 0.05
-          correctedVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+        } else if (pos.z < -goalPostZ) {
+          correctedPos.z = -goalPostZ
+          correctedVel.z = Math.abs(vel.z) * PHYSICS.POST_RESTITUTION
           needsCorrection = true
         }
       }
 
-      // Y axis boundaries (floor and ceiling)
+      // Floor boundary (always)
       if (pos.y < ballR) {
         correctedPos.y = ballR
         correctedVel.y = Math.abs(vel.y) * PHYSICS.GROUND_RESTITUTION
         needsCorrection = true
       }
 
+      // Ceiling boundary
       if (pos.y > PHYSICS.WALL_HEIGHT - ballR) {
         correctedPos.y = PHYSICS.WALL_HEIGHT - ballR
         correctedVel.y = -Math.abs(vel.y) * 0.1
-        needsCorrection = true
-      }
-
-      // ===========================================
-      // 2. GLOBAL SAFETY NET (Absolute Containment)
-      // ===========================================
-      // If ball is somehow outside the absolute bounding box, teleport it back
-      const ABS_MAX_X = 18.0
-      const ABS_MAX_Z = 10.5
-      const ABS_MAX_Y = 11.0
-      
-      if (Math.abs(pos.x) > ABS_MAX_X || Math.abs(pos.z) > ABS_MAX_Z || pos.y > ABS_MAX_Y || pos.y < -1.0) {
-        console.log(`[SAFETY NET] Ball escaped! Pos: ${pos.x}, ${pos.y}, ${pos.z}. Teleporting back.`)
-        correctedPos = { x: 0, y: 2, z: 0 }
-        correctedVel = { x: 0, y: 0, z: 0 }
         needsCorrection = true
       }
 
@@ -969,35 +913,27 @@ export class SoccerRoom extends Room {
         const isOnHead = dy > PHYSICS.BALL_STABILITY_HEIGHT_MIN && ny > 0.5
         const isLowVelocity = relSpeed < PHYSICS.BALL_STABILITY_VELOCITY_THRESHOLD
         const playerSpeed = Math.sqrt((player.vx || 0) ** 2 + (player.vz || 0) ** 2)
+        const isStationary = playerSpeed < 0.5
 
-        if (isOnHead && isLowVelocity) {
+        if (isOnHead && isLowVelocity && isStationary) {
           // STABILITY MODE: Ball is resting on player's head
-          // Make ball move WITH the player (head carry)
-          
-          // Match player's horizontal velocity exactly for perfect follow
-          const targetVx = (player.vx || 0)
-          const targetVz = (player.vz || 0)
-          
-          // Dampen vertical velocity to prevent bouncing
+          // Apply damping instead of impulse to keep ball stable
+          const dampedVx = ballVel.x * PHYSICS.BALL_STABILITY_DAMPING
           const dampedVy = ballVel.y * PHYSICS.BALL_STABILITY_DAMPING
+          const dampedVz = ballVel.z * PHYSICS.BALL_STABILITY_DAMPING
           
-          this.ballBody.setLinvel({ x: targetVx, y: dampedVy, z: targetVz }, true)
+          this.ballBody.setLinvel({ x: dampedVx, y: dampedVy, z: dampedVz }, true)
           
-          // Position ball directly above player head with a small offset
-          // We want it centered on (playerPos.x, playerPos.z)
-          const targetX = playerPos.x
-          const targetZ = playerPos.z
-          const targetY = playerPos.y + playerRadius + ballRadius + 0.02 // Tiny gap
-          
-          // Smoothly correct position to prevent jitter, but be firm
-          const currentPos = this.ballBody.translation()
-          const lerpFactor = 0.4 // Increased for firmer follow
-          
-          this.ballBody.setTranslation({
-            x: currentPos.x + (targetX - currentPos.x) * lerpFactor,
-            y: Math.max(currentPos.y, targetY), // Prevent sinking into head
-            z: currentPos.z + (targetZ - currentPos.z) * lerpFactor
-          }, true)
+          // Gently push ball up to prevent sinking through player
+          const penetration = combinedRadius - dist
+          if (penetration > 0.01) {
+            const correction = {
+              x: ballPos.x + nx * penetration * 0.5,
+              y: ballPos.y + ny * penetration * 0.5,
+              z: ballPos.z + nz * penetration * 0.5
+            }
+            this.ballBody.setTranslation(correction, true)
+          }
           
           // Set ball ownership
           this.state.ball.ownerSessionId = sessionId
