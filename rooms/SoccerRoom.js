@@ -21,6 +21,7 @@ export class SoccerRoom extends Room {
   // Physics world
   world = null
   playerBodies = new Map()
+  bots = new Map() // Store bot AI state
   ballBody = null
 
   // Timers
@@ -66,12 +67,20 @@ export class SoccerRoom extends Room {
       map: options?.map || this.state.selectedMap || null,
       createdAt: this.roomCreatedAt,
       redCount: 0,
-      blueCount: 0
+      blueCount: 0,
+      mode: options?.mode || 'standard'
     })
 
     // Set map from options if provided (Host's choice)
     if (options.map) {
       this.state.selectedMap = options.map
+    }
+
+    // Handle Training Mode
+    if (options.mode === 'training') {
+      this.clock.setTimeout(() => {
+        this.createBot(options.difficulty || 'medium')
+      }, 1000)
     }
 
     // Physics world
@@ -722,6 +731,9 @@ export class SoccerRoom extends Room {
     // 2. Step physics world
     this.world.step()
 
+    // 2.5 Update Bots
+    this.updateBots(deltaTime)
+
     // 3. Handle player-ball collisions with momentum transfer
     this.handlePlayerBallCollisions()
 
@@ -760,6 +772,105 @@ export class SoccerRoom extends Room {
         this.ballBody.setAngvel({ x: angvel.x * scale, y: angvel.y * scale, z: angvel.z * scale }, true)
       }
     }
+  }
+
+  // --- BOT LOGIC ---
+
+  createBot(difficulty) {
+    const id = `bot-${Date.now()}`
+    const team = 'blue' // Bots are always blue (enemy) for now
+    
+    const player = new PlayerState()
+    player.name = `Bot (${difficulty})`
+    player.team = team
+    player.character = 'car' // Bots use car model
+    player.sessionId = id
+    player.isBot = true
+    
+    // Bot stats based on difficulty
+    player.difficulty = difficulty
+    player.reactionDelay = difficulty === 'easy' ? 20 : (difficulty === 'medium' ? 10 : 0)
+    player.moveSpeedMult = difficulty === 'easy' ? 0.6 : (difficulty === 'medium' ? 0.8 : 1.0)
+
+    const spawn = this.createPlayerBody(id, team)
+    player.x = spawn.x
+    player.y = spawn.y
+    player.z = spawn.z
+
+    this.state.players.set(id, player)
+    this.bots.set(id, { 
+      targetX: 0, 
+      targetZ: 0, 
+      state: 'chase', // 'chase', 'kick', 'idle'
+      lastActionTime: 0 
+    })
+  }
+
+  updateBots(deltaTime) {
+    if (!this.ballBody) return
+
+    const ballPos = this.ballBody.translation()
+
+    this.bots.forEach((botData, botId) => {
+      const player = this.state.players.get(botId)
+      const body = this.playerBodies.get(botId)
+      if (!player || !body) return
+
+      const pos = body.translation()
+      
+      // Simple AI: Move towards ball
+      const dx = ballPos.x - pos.x
+      const dz = ballPos.z - pos.z
+      const distToBall = Math.sqrt(dx*dx + dz*dz)
+
+      // Normalize direction
+      let moveX = 0
+      let moveZ = 0
+
+      if (distToBall > 1.0) {
+        moveX = dx / distToBall
+        moveZ = dz / distToBall
+      }
+
+      // Apply movement
+      const speed = PHYSICS.MOVE_SPEED * (player.moveSpeedMult || 0.8)
+      
+      // Smooth velocity
+      const smoothing = PHYSICS.VELOCITY_SMOOTHING
+      player.vx = (player.vx || 0) + (moveX * speed - (player.vx || 0)) * smoothing
+      player.vz = (player.vz || 0) + (moveZ * speed - (player.vz || 0)) * smoothing
+
+      // Update position
+      let newX = pos.x + player.vx * deltaTime
+      let newZ = pos.z + player.vz * deltaTime
+      
+      // Bounds
+      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
+      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
+
+      body.setNextKinematicTranslation({ x: newX, y: 0.1, z: newZ })
+
+      // Update state
+      player.x = newX
+      player.z = newZ
+      player.rotY = Math.atan2(dx, dz) // Face ball
+
+      // Kick logic
+      if (distToBall < 2.5 && Date.now() - botData.lastActionTime > 1000) {
+        // Check if facing goal (roughly)
+        // Goal is at X = -17 (Red) or 17 (Blue). Bot is Blue, so target Red goal (-17)
+        const goalDirX = -1 
+        // Simple check: is ball between bot and goal?
+        
+        // Just kick towards goal
+        this.handleKick({ sessionId: botId }, {
+          impulseX: -15, // Kick left (towards Red goal)
+          impulseY: 5,
+          impulseZ: (Math.random() - 0.5) * 5 // Add some randomness
+        })
+        botData.lastActionTime = Date.now()
+      }
+    })
   }
 
   checkGoal() {
