@@ -964,9 +964,10 @@ export class SoccerRoom extends Room {
           }
 
           // Apply impulse to ball
+          const lift = player.giant ? PHYSICS.COLLISION_LIFT_GIANT : PHYSICS.COLLISION_LIFT
           const impulse = {
             x: nx * impulseMag,
-            y: Math.max(0.5, ny * impulseMag) + 1.0, // Add some lift
+            y: Math.max(0.5, ny * impulseMag) + lift, // Add some lift
             z: nz * impulseMag
           }
 

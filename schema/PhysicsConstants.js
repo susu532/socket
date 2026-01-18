@@ -122,4 +122,8 @@ export const PHYSICS = {
   BALL_STABILITY_HEIGHT_MIN: 0.3,          // Ball must be this much above player center
   BALL_STABILITY_DAMPING: 0.92,            // Dampen ball velocity when resting on head
   BALL_STABILITY_IMPULSE_CAP: 2.0,         // Max impulse when in stability mode
+
+  // Collision Lift
+  COLLISION_LIFT: 2.5,                     // Upwards lift when running into ball
+  COLLISION_LIFT_GIANT: 4.0,               // Upwards lift for giant players
 }
