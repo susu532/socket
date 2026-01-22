@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat'
 import { GameState, PlayerState, PowerUpState } from '../schema/GameState.js'
 import { registerPrivateRoom, unregisterRoom, getRoomIdByCode } from '../roomRegistry.js'
 import { PHYSICS } from '../schema/PhysicsConstants.js'
+import { enforceGoalNetBoundaries, applyCCDBoundaryCorrection } from '../utils/GoalNetBoundaryEnforcer.js'
 
 const PHYSICS_TICK_RATE = 1000 / PHYSICS.TICK_RATE 
 const GOAL_COOLDOWN = 5000          // 5 seconds
@@ -1480,120 +1481,27 @@ export class SoccerRoom extends Room {
   }
 
   // COMPREHENSIVE BALL BOUNDARY ENFORCEMENT
-  // Ensures ball can NEVER escape the arena or goal net area
+  // Uses GoalNetBoundaryEnforcer module for zone detection, smart clamping at z=±2.6,
+  // and CCD for high-speed ball collision prevention
   enforceBallBoundaries() {
     if (!this.ballBody) return
 
     const pos = this.ballBody.translation()
     const vel = this.ballBody.linvel()
     const ballR = PHYSICS.BALL_RADIUS
-    let needsCorrection = false
-    let correctedPos = { x: pos.x, y: pos.y, z: pos.z }
-    let correctedVel = { x: vel.x, y: vel.y, z: vel.z }
 
-    // Boundary constants
-    const ARENA_HALF_WIDTH = PHYSICS.ARENA_HALF_WIDTH  // 14.5
-    const ARENA_HALF_DEPTH = PHYSICS.ARENA_HALF_DEPTH  // 9.5
-    const GOAL_POST_Z = 2.6  // Goal posts at z = ±2.5, but net walls at ±2.6 for breathing room
-    const GOAL_LINE_X = PHYSICS.GOAL_LINE_X  // 10.8
-    const GOAL_BACK_X = 17.0  // Back of goal net
-    const GOAL_HEIGHT = PHYSICS.GOAL_HEIGHT  // 4.0
-    const WALL_HEIGHT = PHYSICS.WALL_HEIGHT  // 10
+    // Use the new modular boundary enforcer with zone-aware smart clamping
+    const result = enforceGoalNetBoundaries(
+      { x: pos.x, y: pos.y, z: pos.z },
+      { x: vel.x, y: vel.y, z: vel.z },
+      ballR,
+      PHYSICS  // Pass physics constants
+    )
 
-    // Effective boundaries (accounting for ball radius)
-    const maxX = ARENA_HALF_WIDTH - ballR
-    const maxZ = ARENA_HALF_DEPTH - ballR
-
-    // Zone detection - more robust
-    const absX = Math.abs(pos.x)
-    const absZ = Math.abs(pos.z)
-    
-    // Is the ball past the goal line (inside goal area)?
-    const isPastGoalLine = absX > GOAL_LINE_X
-    // Is the ball DEEP in the goal net (past the arena wall)?
-    const isDeepInGoal = absX > ARENA_HALF_WIDTH
-        // Is the ball within the goal opening (between the posts)?
-    const isInGoalOpening = absZ < GOAL_POST_Z && pos.y < GOAL_HEIGHT && isPastGoalLine
-
-    // === Z AXIS ENFORCEMENT ===
-    if (isDeepInGoal) {
-      // Ball is deep in the goal extension (x > 14.5)
-      // Check if it's actually inside the net width
-      const goalSideLimit = GOAL_POST_Z - ballR
-      
-      if (Math.abs(pos.z) > goalSideLimit) {
-        // Ball is deep in X but OUTSIDE the net in Z.
-        // This means it has penetrated the arena back wall (at x=14.5).
-        // Instead of clamping Z (which sucks it into the net), we clamp X back to the arena.
-        correctedPos.x = (pos.x > 0 ? maxX : -maxX)
-        correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
-        needsCorrection = true
-      } else {
-
-        if (pos.z > goalSideLimit) {
-          correctedPos.z = goalSideLimit
-          correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
-          needsCorrection = true
-        } else if (pos.z < -goalSideLimit) {
-          correctedPos.z = -goalSideLimit
-          correctedVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
-          needsCorrection = true
-        }
-      }
-    } else {
-      // Ball is in main arena (x < 10.8) - enforce arena walls
-      if (pos.z > maxZ) {
-        correctedPos.z = maxZ
-        correctedVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
-        needsCorrection = true
-      } else if (pos.z < -maxZ) {
-        correctedPos.z = -maxZ
-        correctedVel.z = Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
-        needsCorrection = true
-      }
-    }
-
-    // === X AXIS ENFORCEMENT ===
-    if (isInGoalOpening || isDeepInGoal) {
-      // Ball is allowed in goal area, but clamp to goal back wall
-      const goalBackLimit = GOAL_BACK_X - ballR
-      if (pos.x > goalBackLimit) {
-        correctedPos.x = goalBackLimit
-        correctedVel.x = -Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
-        needsCorrection = true
-      } else if (pos.x < -goalBackLimit) {
-        correctedPos.x = -goalBackLimit
-        correctedVel.x = Math.abs(vel.x) * PHYSICS.GOAL_RESTITUTION
-        needsCorrection = true
-      }
-    } else {
-      // Ball is in main arena - enforce arena walls
-      if (pos.x > maxX) {
-        correctedPos.x = maxX
-        correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
-        needsCorrection = true
-      } else if (pos.x < -maxX) {
-        correctedPos.x = -maxX
-        correctedVel.x = Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
-        needsCorrection = true
-      }
-    }
-
-    // === Y AXIS ENFORCEMENT (floor and ceiling) ===
-    if (pos.y < ballR) {
-      correctedPos.y = ballR
-      correctedVel.y = Math.abs(vel.y) * PHYSICS.GROUND_RESTITUTION
-      needsCorrection = true
-    } else if (pos.y > WALL_HEIGHT - ballR) {
-      correctedPos.y = WALL_HEIGHT - ballR
-      correctedVel.y = -Math.abs(vel.y) * 0.1
-      needsCorrection = true
-    }
-
-    // Apply corrections
-    if (needsCorrection) {
-      this.ballBody.setTranslation(correctedPos, true)
-      this.ballBody.setLinvel(correctedVel, true)
+    // Apply corrections if needed
+    if (result.needsCorrection) {
+      this.ballBody.setTranslation(result.correctedPos, true)
+      this.ballBody.setLinvel(result.correctedVel, true)
     }
   }
 
