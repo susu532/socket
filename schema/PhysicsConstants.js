@@ -28,7 +28,7 @@ export const PHYSICS = {
   // Restitution
   GROUND_RESTITUTION: 0.9,
   WALL_RESTITUTION: 0.3,
-  GOAL_RESTITUTION: 0.99,  // Increased for stronger net bounce
+  GOAL_RESTITUTION: 1.5,  // Increased for stronger net bounce
   POST_RESTITUTION: 0.3,
   
   // Wall Dimensions
