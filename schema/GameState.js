@@ -130,6 +130,7 @@ export class GameState extends Schema {
     this.redScore = 0
     this.blueScore = 0
     this.timer = 300
+    this.countdownTimer = 0
     this.gamePhase = 'waiting'
     this.selectedMap = 'OceanFloor'
     this.currentTick = 0
@@ -143,6 +144,7 @@ defineTypes(GameState, {
   redScore: 'number',
   blueScore: 'number',
   timer: 'number',
+  countdownTimer: 'number',
   gamePhase: 'string',
   selectedMap: 'string',
   currentTick: 'number'

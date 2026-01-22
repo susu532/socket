@@ -231,15 +231,16 @@ export class SoccerRoom extends Room {
     const goalNetWallThickness = PHYSICS.GOAL_NET_WALL_THICKNESS || 0.5
     const goalNetSideWalls = [
       // Left goal (x = -10.8 to -17.2)
-      { x: (-10.8 - 17.2) / 2, z: 2.5 + goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Top side
-      { x: (-10.8 - 17.2) / 2, z: -2.5 - goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Bottom side
+      // Offset by 0.1m (2.6) to be strictly outside the goal mouth (2.5)
+      { x: (-10.8 - 17.2) / 2, z: 2.6 + goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Top side
+      { x: (-10.8 - 17.2) / 2, z: -2.6 - goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Bottom side
       // Right goal (x = 10.8 to 17.2)
-      { x: (10.8 + 17.2) / 2, z: 2.5 + goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Top side
-      { x: (10.8 + 17.2) / 2, z: -2.5 - goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness } // Bottom side
+      { x: (10.8 + 17.2) / 2, z: 2.6 + goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Top side
+      { x: (10.8 + 17.2) / 2, z: -2.6 - goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness } // Bottom side
     ]
     goalNetSideWalls.forEach(({ x, z, halfX, halfZ }) => {
-      const desc = RAPIER.ColliderDesc.cuboid(halfX, 13, halfZ)
-        .setTranslation(x, 13, z)
+      const desc = RAPIER.ColliderDesc.cuboid(halfX, 5, halfZ)
+        .setTranslation(x, 5, z)
         .setRestitution(PHYSICS.GOAL_RESTITUTION)
       this.world.createCollider(desc)
     })
@@ -531,16 +532,61 @@ export class SoccerRoom extends Room {
     const keys = [...this.state.players.keys()]
     if (keys[0] !== client.sessionId) return
 
+    // Reset game state and player stats
     this.resetGame()
-    this.state.gamePhase = 'playing'
+    
+    // Reset player individual stats
+    this.state.players.forEach((player) => {
+      player.goals = 0
+      player.assists = 0
+      player.shots = 0
+    })
+    
+    // Start countdown phase (10 seconds)
+    this.state.gamePhase = 'countdown'
+    this.state.countdownTimer = 10
+    
+    // Broadcast countdown start
+    this.broadcast('countdown-start', { seconds: 10 })
 
-    // Start timer
-    if (this.timerInterval) clearInterval(this.timerInterval)
-    this.timerInterval = this.clock.setInterval(() => {
-      if (this.state.gamePhase === 'playing') {
-        this.state.timer--
-        if (this.state.timer <= 0) {
-          this.endGame()
+    // Clear any existing intervals
+    if (this.timerInterval) {
+      this.timerInterval.clear()
+      this.timerInterval = null
+    }
+    if (this.countdownInterval) {
+      this.countdownInterval.clear()
+      this.countdownInterval = null
+    }
+
+    // Countdown interval
+    this.countdownInterval = this.clock.setInterval(() => {
+      if (this.state.gamePhase === 'countdown') {
+        this.state.countdownTimer--
+        
+        // Broadcast each tick for audio sync
+        this.broadcast('countdown-tick', { seconds: this.state.countdownTimer })
+        
+        if (this.state.countdownTimer <= 0) {
+          // Stop countdown interval
+          if (this.countdownInterval) {
+            this.countdownInterval.clear()
+            this.countdownInterval = null
+          }
+          
+          // Transition to playing
+          this.state.gamePhase = 'playing'
+          this.broadcast('countdown-go', {})
+          
+          // Start game timer
+          this.timerInterval = this.clock.setInterval(() => {
+            if (this.state.gamePhase === 'playing') {
+              this.state.timer--
+              if (this.state.timer <= 0) {
+                this.endGame()
+              }
+            }
+          }, 1000)
         }
       }
     }, 1000)
@@ -650,6 +696,10 @@ export class SoccerRoom extends Room {
         const jumpRequestId = input.jumpRequestId || 0
         const rotY = input.rotY || 0
 
+        // FREEZE PLAYERS DURING COUNTDOWN
+        // Players can look around but not move
+        const isCountdown = this.state.gamePhase === 'countdown'
+
         // Handle forced reset
         if (player.resetPosition) {
           const spawnX = player.team === 'red' ? -6 : 6
@@ -682,14 +732,18 @@ export class SoccerRoom extends Room {
       player.vx = player.vx || 0
       player.vz = player.vz || 0
       
-      if (x === 0 && z === 0) {
+      // During countdown, force zero movement
+      const effectiveX = isCountdown ? 0 : x
+      const effectiveZ = isCountdown ? 0 : z
+      
+      if (effectiveX === 0 && effectiveZ === 0) {
         // Instant stop to prevent sliding
         player.vx = 0
         player.vz = 0
       } else {
         const smoothing = PHYSICS.VELOCITY_SMOOTHING
-        player.vx = player.vx + (x * speed - player.vx) * smoothing
-        player.vz = player.vz + (z * speed - player.vz) * smoothing
+        player.vx = player.vx + (effectiveX * speed - player.vx) * smoothing
+        player.vz = player.vz + (effectiveZ * speed - player.vz) * smoothing
       }
 
 
@@ -703,8 +757,8 @@ export class SoccerRoom extends Room {
         player.jumpCount = 0
       }
 
-      // Jump Request ID Logic: Only jump if we see a NEW request ID
-      if (jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
+      // Jump Request ID Logic: Only jump if we see a NEW request ID (and not during countdown)
+      if (!isCountdown && jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
         const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
         player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
@@ -1493,7 +1547,7 @@ export class SoccerRoom extends Room {
     // Boundary constants
     const ARENA_HALF_WIDTH = PHYSICS.ARENA_HALF_WIDTH  // 14.5
     const ARENA_HALF_DEPTH = PHYSICS.ARENA_HALF_DEPTH  // 9.5
-    const GOAL_POST_Z = 2.5  // Goal posts at z = ±2.5
+    const GOAL_POST_Z = 2.6  // Goal posts at z = ±2.5, but net walls at ±2.6 for breathing room
     const GOAL_LINE_X = PHYSICS.GOAL_LINE_X  // 10.8
     const GOAL_BACK_X = 17.0  // Back of goal net
     const GOAL_HEIGHT = PHYSICS.GOAL_HEIGHT  // 4.0
