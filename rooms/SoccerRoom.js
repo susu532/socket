@@ -784,7 +784,7 @@ export class SoccerRoom extends Room {
     }
   }
 
-  // --- BOT LOGIC ---
+  // --- BOT LOGIC (Human-Like AI) ---
 
   createBot(difficulty) {
     const id = `bot-${Date.now()}`
@@ -796,11 +796,7 @@ export class SoccerRoom extends Room {
     player.character = 'car' // Bots use car model
     player.sessionId = id
     player.isBot = true
-    
-    // Bot stats based on difficulty
     player.difficulty = difficulty
-    player.reactionDelay = difficulty === 'easy' ? 20 : (difficulty === 'medium' ? 10 : 0)
-    player.moveSpeedMult = difficulty === 'easy' ? 0.6 : (difficulty === 'medium' ? 0.8 : 1.0)
 
     const spawn = this.createPlayerBody(id, team)
     player.x = spawn.x
@@ -808,12 +804,83 @@ export class SoccerRoom extends Room {
     player.z = spawn.z
 
     this.state.players.set(id, player)
+    
+    // Enhanced bot data with human-like properties
     this.bots.set(id, { 
-      targetX: 0, 
-      targetZ: 0, 
-      state: 'chase', // 'chase', 'kick', 'idle'
-      lastActionTime: 0 
+      // State machine
+      state: 'idle',              // idle, chase, position, attack, defend
+      
+      // Movement targets
+      targetX: spawn.x, 
+      targetZ: spawn.z,
+      
+      // Human-like timing (all in ms)
+      reactionTimer: 0,           // Delay before reacting to ball
+      thinkingTimer: 0,           // Cooldown between decisions
+      lastDecisionTime: 0,
+      lastKickTime: 0,
+      lastJumpTime: 0,
+      
+      // Imperfection factors
+      aimVariance: 0,             // Current aim offset
+      moveSpeedVariance: 0.8 + Math.random() * 0.2,  // Personal speed tendency
+      
+      // Human mannerisms
+      idleWigglePhase: Math.random() * Math.PI * 2,
+      wiggleTimer: 0,
+      
+      // Difficulty-based settings
+      ...this.getBotDifficultySettings(difficulty)
     })
+  }
+
+  // Get difficulty-based settings
+  getBotDifficultySettings(difficulty) {
+    switch (difficulty) {
+      case 'easy':
+        return {
+          reactionDelayMin: 300,
+          reactionDelayMax: 600,
+          decisionInterval: 1500,
+          aimVarianceMax: 35,       // degrees
+          speedMultMin: 0.45,
+          speedMultMax: 0.65,
+          missChance: 0.18,
+          kickCooldownMin: 1200,
+          kickCooldownMax: 2000,
+          jumpChance: 0.005,        // Random jump chance per tick
+          chaseDirectly: true       // Easy bots just chase ball
+        }
+      case 'medium':
+        return {
+          reactionDelayMin: 120,
+          reactionDelayMax: 280,
+          decisionInterval: 800,
+          aimVarianceMax: 18,
+          speedMultMin: 0.7,
+          speedMultMax: 0.9,
+          missChance: 0.06,
+          kickCooldownMin: 700,
+          kickCooldownMax: 1200,
+          jumpChance: 0.008,
+          chaseDirectly: false
+        }
+      case 'hard':
+      default:
+        return {
+          reactionDelayMin: 40,
+          reactionDelayMax: 120,
+          decisionInterval: 350,
+          aimVarianceMax: 6,
+          speedMultMin: 0.9,
+          speedMultMax: 1.1,
+          missChance: 0.015,
+          kickCooldownMin: 400,
+          kickCooldownMax: 700,
+          jumpChance: 0.01,
+          chaseDirectly: false
+        }
+    }
   }
 
   updateBots(deltaTime) {
@@ -821,6 +888,7 @@ export class SoccerRoom extends Room {
 
     const ballPos = this.ballBody.translation()
     const ballVel = this.ballBody.linvel()
+    const now = Date.now()
 
     this.bots.forEach((botData, botId) => {
       const player = this.state.players.get(botId)
@@ -828,217 +896,299 @@ export class SoccerRoom extends Room {
       if (!player || !body) return
 
       const pos = body.translation()
-      const difficulty = player.difficulty || 'medium'
+      const distToBall = Math.sqrt(
+        Math.pow(ballPos.x - pos.x, 2) + Math.pow(ballPos.z - pos.z, 2)
+      )
+      const ballInOwnHalf = ballPos.x > 0 // Blue team defends right side
 
-      // --- AI DECISION MAKING ---
+      // --- REACTION DELAY ---
+      // Bot doesn't react instantly - human-like delay
+      if (botData.reactionTimer > 0) {
+        botData.reactionTimer -= deltaTime * 1000
+        // During reaction delay, continue current movement with slight drift
+        this.applyBotIdleMovement(player, body, pos, botData, deltaTime)
+        return
+      }
 
-      // 1. Calculate Target Position
-      let targetX = ballPos.x
-      let targetZ = ballPos.z
-
-      // Goal Targets (Bot is Blue, attacking Red goal at X = -17)
-      const attackGoalX = -17
-      const defendGoalX = 17
-
-      if (difficulty === 'easy') {
-        // Easy: Just chase the ball directly
-        targetX = ballPos.x
-        targetZ = ballPos.z
-      } else if (difficulty === 'medium') {
-        // Medium: Try to get slightly behind the ball to push it towards goal
-        // Vector from ball to goal
-        const dx = attackGoalX - ballPos.x
-        const dz = 0 - ballPos.z // Center of goal
-        const len = Math.sqrt(dx*dx + dz*dz)
+      // --- STATE MACHINE DECISIONS ---
+      if (now - botData.lastDecisionTime > botData.decisionInterval) {
+        botData.lastDecisionTime = now
         
-        // Position 1m behind ball
-        if (len > 0) {
-          targetX = ballPos.x - (dx / len) * 1.0
-          targetZ = ballPos.z - (dz / len) * 1.0
-        }
-      } else {
-        // Hard: Predictive positioning & "Sweet Spot"
-        // Predict ball position in 0.5s
-        const predX = ballPos.x + ballVel.x * 0.5
-        const predZ = ballPos.z + ballVel.z * 0.5
+        // Set new reaction delay for next decision
+        botData.reactionTimer = botData.reactionDelayMin + 
+          Math.random() * (botData.reactionDelayMax - botData.reactionDelayMin)
         
-        // Vector from predicted ball to goal
-        const dx = attackGoalX - predX
-        const dz = 0 - predZ
-        const len = Math.sqrt(dx*dx + dz*dz)
-
-        // Sweet spot: 1.5m behind predicted ball position
-        if (len > 0) {
-          targetX = predX - (dx / len) * 1.5
-          targetZ = predZ - (dz / len) * 1.5
+        // Decide new state based on situation
+        const oldState = botData.state
+        botData.state = this.decideBotState(pos, ballPos, ballVel, distToBall, ballInOwnHalf, botData)
+        
+        // If state changed, update aim variance (human imprecision)
+        if (oldState !== botData.state || botData.state === 'attack') {
+          botData.aimVariance = (Math.random() - 0.5) * 2 * botData.aimVarianceMax
         }
-
-        // Defensive override: If ball is on our side (X > 0) and behind us, get between ball and goal
-        if (ballPos.x > 5 && ballPos.x > pos.x) {
-           targetX = ballPos.x + 2 // Stay between ball and our goal
-           targetZ = ballPos.z * 0.5 // Shadow Z
-        }
+        
+        // Calculate new target position based on state
+        this.calculateBotTarget(botData, pos, ballPos, ballVel, distToBall, ballInOwnHalf)
       }
 
-      // 2. Move Logic
-      const dx = targetX - pos.x
-      const dz = targetZ - pos.z
-      const distToTarget = Math.sqrt(dx*dx + dz*dz)
-      
-      let moveX = 0
-      let moveZ = 0
-
-      if (distToTarget > 0.5) {
-        moveX = dx / distToTarget
-        moveZ = dz / distToTarget
+      // --- EXECUTE CURRENT STATE ---
+      switch (botData.state) {
+        case 'idle':
+          this.applyBotIdleMovement(player, body, pos, botData, deltaTime)
+          break
+        case 'chase':
+        case 'position':
+        case 'defend':
+          this.applyBotMovement(player, body, pos, botData, deltaTime, ballPos)
+          break
+        case 'attack':
+          this.applyBotMovement(player, body, pos, botData, deltaTime, ballPos)
+          this.tryBotKick(player, body, pos, ballPos, botData, now, distToBall)
+          break
       }
 
-      // Speed settings
-      let speedMult = 0.6
-      if (difficulty === 'medium') speedMult = 0.85
-      if (difficulty === 'hard') speedMult = 1.1
-
-      const speed = PHYSICS.MOVE_SPEED * speedMult
-      
-      // Smooth velocity
-      const smoothing = PHYSICS.VELOCITY_SMOOTHING
-      player.vx = (player.vx || 0) + (moveX * speed - (player.vx || 0)) * smoothing
-      player.vz = (player.vz || 0) + (moveZ * speed - (player.vz || 0)) * smoothing
-
-      // Update position
-      let newX = pos.x + player.vx * deltaTime
-      let newZ = pos.z + player.vz * deltaTime
-      
-      // Bounds
-      newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
-      newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
-
-      body.setNextKinematicTranslation({ x: newX, y: pos.y, z: newZ })
-
-      // Update state
-      player.x = newX
-      player.z = newZ
-      player.rotY = Math.atan2(ballPos.x - pos.x, ballPos.z - pos.z) // Always look at ball
-
-      // 3. Action Logic (Jump & Kick)
-      const distToBall = Math.sqrt(Math.pow(ballPos.x - pos.x, 2) + Math.pow(ballPos.z - pos.z, 2))
-
-      // Jump Logic
-      if (difficulty !== 'easy') {
-        // Jump if ball is high and close (Header)
-        if (ballPos.y > 1.5 && ballPos.y < 4 && distToBall < 2.0 && player.jumpCount < 2) {
-           // Simple jump simulation (server-side only for now, ideally needs physics impulse)
-           // For kinematic body, we need to handle Y movement in physics loop or just trigger the flag
-           // Here we'll just "cheat" and say if we are close and it's high, we hit it.
-           // But properly, we should set a jump flag that the physics loop handles.
-           // Let's reuse the jump logic in physics loop by simulating an input? 
-           // Or just direct velocity manipulation since we are authoritative.
-           
-           // Only jump if not already jumping
-           if (pos.y < 0.2) {
-             player.vy = PHYSICS.JUMP_FORCE
-             player.jumpCount = 1
-           }
-        }
+      // --- HUMAN MANNERISMS ---
+      // Random jumps (like a real player might do)
+      if (Math.random() < botData.jumpChance && pos.y < 0.2 && now - botData.lastJumpTime > 2000) {
+        player.vy = PHYSICS.JUMP_FORCE * 0.7 // Smaller casual jump
+        player.jumpCount = 1
+        botData.lastJumpTime = now
       }
 
-      // Kick Logic
-      if (distToBall < 2.5 && Date.now() - botData.lastActionTime > (difficulty === 'hard' ? 500 : 1000)) {
-        // Aiming
-        let aimX = -1 // Towards Red Goal
-        let aimZ = 0
-        let power = 1.0
-
-        if (difficulty === 'hard') {
-           // Aim at goal corners
-           aimZ = (Math.random() > 0.5 ? 2.5 : -2.5)
-           power = 1.2
-        } else if (difficulty === 'medium') {
-           aimZ = (Math.random() - 0.5) * 2
-        } else {
-           aimZ = (Math.random() - 0.5) * 5 // Wild aiming
-        }
-
-        // Calculate impulse vector
-        // Normalize aim direction
-        const aimLen = Math.sqrt(aimX*aimX + aimZ*aimZ)
-        const impX = (aimX / aimLen) * 15 * power
-        const impZ = (aimZ / aimLen) * 15 * power
-        const impY = 5 + (difficulty === 'hard' ? 2 : 0) // Higher arc for hard
-
-        this.handleKick({ sessionId: botId }, {
-          impulseX: impX,
-          impulseY: impY,
-          impulseZ: impZ
-        })
-        botData.lastActionTime = Date.now()
+      // Jump to header if ball is high and close
+      if (ballPos.y > 1.8 && ballPos.y < 4.5 && distToBall < 2.5 && pos.y < 0.2 && player.jumpCount < 2) {
+        player.vy = PHYSICS.JUMP_FORCE
+        player.jumpCount = 1
       }
-      
-      // Handle Gravity for Bot (since we manually set Y in physics loop usually, but here we need to update it)
-      // Actually, the main physics loop handles gravity for ALL players in playerBodies.
-      // We just need to ensure we don't overwrite Y with 0.1 constantly if jumping.
-      // In the code above: body.setNextKinematicTranslation({ x: newX, y: pos.y, z: newZ })
-      // pos.y comes from body.translation(), which is updated by physics loop?
-      // Wait, the main loop iterates all players. We are in `updateBots` which is called AFTER step?
-      // Or inside physicsUpdate?
-      // It's called inside physicsUpdate.
-      // The main loop does:
-      // 1. Update players (velocity, gravity, bounds) -> sets next translation
-      // 2. Step world
-      // 3. Update Bots
-      
-      // If we setNextKinematicTranslation HERE, we override the main loop's gravity update for this frame?
-      // Yes. We should integrate bot movement INTO the main loop or ensure we respect Y.
-      // The main loop calculates `newY` with gravity.
-      // We should probably just set `player.vx` and `player.vz` and let the main loop handle the integration?
-      // BUT, the main loop iterates `this.state.players`. Bots ARE in `this.state.players`.
-      // So the main loop IS processing them.
-      // The main loop uses `player.inputQueue`. Bots don't have inputs.
-      // So the main loop might just be applying gravity and friction?
-      // Let's check the main loop.
-      // It says: `if (!input) input = player.lastInput ...`
-      // Bots don't have inputs. So they might be stuck repeating 0,0.
-      
-      // BETTER APPROACH:
-      // Just set `player.vx` and `player.vz` here.
-      // And let the main loop (next frame) or a second pass handle the integration?
-      // Actually, `updateBots` is called at step 2.5.
-      // If we set `player.vx/vz` here, they will be used in the NEXT frame's main loop.
-      // That is fine.
-      // BUT, we also want to turn them.
-      // And we want to ensure they don't just stop.
-      
-      // Let's just update the velocities here and let the main loop handle the physics integration in the next tick.
-      // That ensures gravity and collisions work consistently.
-      // We just need to ensure the main loop doesn't overwrite our velocities with "no input" 0s.
-      // In main loop: `if (x === 0 && z === 0) { player.vx = 0 ... }`
-      // We need to simulate "Input" for the bot.
-      
-      // REVISION:
-      // Instead of manually setting position, let's generate a "fake input" for the bot
-      // and push it to `player.inputQueue`.
-      // This is the cleanest way to integrate with existing physics.
-      
+
+      // Push input to queue for physics loop
       const input = {
         tick: this.currentTick + 1,
-        x: moveX, // Normalized direction
-        z: moveZ,
+        x: player._botMoveX || 0,
+        z: player._botMoveZ || 0,
         rotY: Math.atan2(ballPos.x - pos.x, ballPos.z - pos.z),
-        jump: false // We handle jump via direct velocity or separate flag
+        jump: false
       }
       
-      // Push to queue
       if (!player.inputQueue) player.inputQueue = []
       player.inputQueue.push(input)
-      
-      // Handle Jump (Direct velocity set is easier for now as input doesn't support "trigger" well without state)
-      if (difficulty !== 'easy' && ballPos.y > 1.5 && ballPos.y < 4 && distToBall < 2.0 && player.jumpCount < 2 && pos.y < 0.2) {
-         player.vy = PHYSICS.JUMP_FORCE
-         player.jumpCount = 1
-      }
-      
     })
   }
+
+  // Decide bot state based on game situation
+  decideBotState(pos, ballPos, ballVel, distToBall, ballInOwnHalf, botData) {
+    // If very close to ball, attack
+    if (distToBall < 2.5) {
+      return 'attack'
+    }
+    
+    // Easy bots just chase
+    if (botData.chaseDirectly) {
+      return distToBall > 1 ? 'chase' : 'attack'
+    }
+
+    // Defensive behavior when ball in own half
+    if (ballInOwnHalf && distToBall > 5) {
+      return 'defend'
+    }
+
+    // Strategic positioning when far from ball
+    if (distToBall > 8) {
+      return 'position'
+    }
+
+    // Default: chase the ball
+    return 'chase'
+  }
+
+  // Calculate target position based on current state
+  calculateBotTarget(botData, pos, ballPos, ballVel, distToBall, ballInOwnHalf) {
+    const attackGoalX = -17 // Red goal (bot attacks)
+    const defendGoalX = 15  // Blue goal (bot defends)
+
+    switch (botData.state) {
+      case 'idle':
+        // Stay roughly in place with small random offset
+        botData.targetX = pos.x + (Math.random() - 0.5) * 2
+        botData.targetZ = pos.z + (Math.random() - 0.5) * 2
+        break
+
+      case 'chase':
+        // Go slightly behind ball to push toward goal
+        const dx = attackGoalX - ballPos.x
+        const dz = 0 - ballPos.z
+        const len = Math.sqrt(dx * dx + dz * dz) || 1
+        
+        // Position 1-2m behind ball (add some randomness)
+        const offset = 0.8 + Math.random() * 0.8
+        botData.targetX = ballPos.x - (dx / len) * offset
+        botData.targetZ = ballPos.z - (dz / len) * offset
+        break
+
+      case 'position':
+        // Move to strategic midfield position
+        // Predict where ball will be in ~0.3s
+        const predX = ballPos.x + ballVel.x * 0.3
+        const predZ = ballPos.z + ballVel.z * 0.3
+        
+        // Position between ball and goal, slightly offset
+        botData.targetX = (predX + attackGoalX) / 2 + (Math.random() - 0.5) * 3
+        botData.targetZ = predZ * 0.6 + (Math.random() - 0.5) * 2
+        break
+
+      case 'defend':
+        // Get between ball and our goal
+        botData.targetX = Math.min(ballPos.x + 3, defendGoalX - 2)
+        botData.targetZ = ballPos.z * 0.7 // Shadow Z position
+        break
+
+      case 'attack':
+        // Move toward ball directly
+        botData.targetX = ballPos.x
+        botData.targetZ = ballPos.z
+        break
+    }
+
+    // Add small random jitter to targets (human imprecision)
+    botData.targetX += (Math.random() - 0.5) * 0.5
+    botData.targetZ += (Math.random() - 0.5) * 0.5
+  }
+
+  // Apply idle movement (subtle wiggling like a real player)
+  applyBotIdleMovement(player, body, pos, botData, deltaTime) {
+    botData.idleWigglePhase += deltaTime * 2
+    
+    // Subtle random movement
+    const wiggleX = Math.sin(botData.idleWigglePhase) * 0.3
+    const wiggleZ = Math.cos(botData.idleWigglePhase * 0.7) * 0.2
+    
+    player._botMoveX = wiggleX
+    player._botMoveZ = wiggleZ
+    
+    // Very slow movement
+    const speed = PHYSICS.MOVE_SPEED * 0.2
+    player.vx = wiggleX * speed
+    player.vz = wiggleZ * speed
+  }
+
+  // Apply movement toward target with human-like imperfection
+  applyBotMovement(player, body, pos, botData, deltaTime, ballPos) {
+    const dx = botData.targetX - pos.x
+    const dz = botData.targetZ - pos.z
+    const distToTarget = Math.sqrt(dx * dx + dz * dz)
+
+    let moveX = 0
+    let moveZ = 0
+
+    if (distToTarget > 0.3) {
+      // Normalize direction
+      moveX = dx / distToTarget
+      moveZ = dz / distToTarget
+      
+      // Add slight movement imperfection (wobble)
+      const wobble = Math.sin(Date.now() * 0.005 + botData.idleWigglePhase) * 0.1
+      moveX += wobble
+      moveZ += Math.cos(Date.now() * 0.004) * 0.08
+      
+      // Re-normalize after wobble
+      const moveLen = Math.sqrt(moveX * moveX + moveZ * moveZ)
+      if (moveLen > 0) {
+        moveX /= moveLen
+        moveZ /= moveLen
+      }
+    }
+
+    // Variable speed based on difficulty and personal variance
+    const speedMult = botData.speedMultMin + 
+      Math.random() * (botData.speedMultMax - botData.speedMultMin) * botData.moveSpeedVariance
+    
+    // Slow down when close to target (more natural)
+    const approachFactor = Math.min(1, distToTarget / 2)
+    
+    const speed = PHYSICS.MOVE_SPEED * speedMult * approachFactor
+    
+    // Smooth velocity changes
+    const smoothing = PHYSICS.VELOCITY_SMOOTHING
+    player.vx = (player.vx || 0) + (moveX * speed - (player.vx || 0)) * smoothing
+    player.vz = (player.vz || 0) + (moveZ * speed - (player.vz || 0)) * smoothing
+
+    // Store for input queue
+    player._botMoveX = moveX
+    player._botMoveZ = moveZ
+
+    // Update position
+    let newX = pos.x + player.vx * deltaTime
+    let newZ = pos.z + player.vz * deltaTime
+    
+    // Bounds
+    newX = Math.max(-PHYSICS.ARENA_HALF_WIDTH, Math.min(PHYSICS.ARENA_HALF_WIDTH, newX))
+    newZ = Math.max(-PHYSICS.ARENA_HALF_DEPTH, Math.min(PHYSICS.ARENA_HALF_DEPTH, newZ))
+
+    body.setNextKinematicTranslation({ x: newX, y: pos.y, z: newZ })
+
+    // Update state
+    player.x = newX
+    player.z = newZ
+    player.rotY = Math.atan2(ballPos.x - pos.x, ballPos.z - pos.z)
+  }
+
+  // Try to kick the ball with human-like timing and aim
+  tryBotKick(player, body, pos, ballPos, botData, now, distToBall) {
+    // Check kick cooldown with variance
+    const kickCooldown = botData.kickCooldownMin + 
+      Math.random() * (botData.kickCooldownMax - botData.kickCooldownMin)
+    
+    if (now - botData.lastKickTime < kickCooldown) return
+    if (distToBall > 2.8) return
+
+    // Miss chance (whiff)
+    if (Math.random() < botData.missChance) {
+      botData.lastKickTime = now
+      // Bot "whiffs" - does a weak miskick
+      this.handleKick({ sessionId: player.sessionId }, {
+        impulseX: (Math.random() - 0.5) * 3,
+        impulseY: 1,
+        impulseZ: (Math.random() - 0.5) * 3
+      })
+      return
+    }
+
+    // Calculate aim with variance
+    let aimX = -1 // Toward red goal
+    let aimZ = 0
+    
+    // Add aim variance (in degrees, convert to radians)
+    const aimAngle = Math.atan2(aimZ, aimX) + (botData.aimVariance * Math.PI / 180)
+    aimX = Math.cos(aimAngle)
+    aimZ = Math.sin(aimAngle)
+
+    // Add some intentional aiming at goal corners for harder bots
+    if (botData.aimVarianceMax < 20) {
+      // Aim at corners sometimes
+      if (Math.random() > 0.5) {
+        aimZ = (Math.random() > 0.5 ? 2.5 : -2.5) / 10
+      }
+    }
+
+    // Power variance
+    const powerMult = 0.8 + Math.random() * 0.4
+    const basePower = 14 + (botData.aimVarianceMax < 10 ? 4 : 0) // Hard bots kick harder
+
+    // Normalize aim direction
+    const aimLen = Math.sqrt(aimX * aimX + aimZ * aimZ) || 1
+    const impX = (aimX / aimLen) * basePower * powerMult
+    const impZ = (aimZ / aimLen) * basePower * powerMult * 0.5
+    const impY = 4 + Math.random() * 3 // Variable height
+
+    this.handleKick({ sessionId: player.sessionId }, {
+      impulseX: impX,
+      impulseY: impY,
+      impulseZ: impZ
+    })
+    
+    botData.lastKickTime = now
+  }
+
 
   checkGoal() {
     if (!this.ballBody) return
