@@ -8,13 +8,7 @@
  * for both server-side physics and client-side prediction.
  */
 
-// Import physics constants if in Node.js environment, otherwise expect them to be passed
-let PHYSICS = null
-try {
-  PHYSICS = require('../schema/PhysicsConstants.js').PHYSICS
-} catch (e) {
-  // Client-side - PHYSICS will be passed as parameter
-}
+import { PHYSICS } from '../schema/PhysicsConstants.js'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BOUNDARY CONSTANTS
@@ -426,7 +420,7 @@ function applyCCDBoundaryCorrection(pos, vel, dt, ballRadius, restitution = 1.5)
 // EXPORTS
 // ═══════════════════════════════════════════════════════════════════════════
 
-module.exports = {
+export {
   // Constants
   GOAL_NET_BOUNDARY,
   
