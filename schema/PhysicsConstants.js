@@ -28,12 +28,13 @@ export const PHYSICS = {
   // Restitution
   GROUND_RESTITUTION: 0.9,
   WALL_RESTITUTION: 0.3,
-  GOAL_RESTITUTION: 0.6,
+  GOAL_RESTITUTION: 0.85,  // Increased for stronger net bounce
   POST_RESTITUTION: 0.3,
   
   // Wall Dimensions
   WALL_HEIGHT: 10,
   WALL_THICKNESS: 2,
+  GOAL_NET_WALL_THICKNESS: 0.5,  // Thick goal net side walls (was 0.1)
   
   // Mechanics
   KICK_RANGE: 3.0,

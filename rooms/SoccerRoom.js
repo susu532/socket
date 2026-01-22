@@ -226,14 +226,16 @@ export class SoccerRoom extends Room {
     // Goal net side walls (prevent ball from escaping between posts and net sides)
     // These walls connect the goal posts to the back of the net on each side
     // Goal net side walls (prevent ball from escaping between posts and net sides)
-    // Thin walls positioned just OUTSIDE the goal mouth (inner face at z=±2.5)
+    // THICK walls positioned just OUTSIDE the goal mouth (inner face at z=±2.5)
+    // Using GOAL_NET_WALL_THICKNESS for enhanced collision detection
+    const goalNetWallThickness = PHYSICS.GOAL_NET_WALL_THICKNESS || 0.5
     const goalNetSideWalls = [
       // Left goal (x = -10.8 to -17.2)
-      { x: (-10.8 - 17.2) / 2, z: 2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 }, // Top side (z=2.5 to 2.7)
-      { x: (-10.8 - 17.2) / 2, z: -2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 }, // Bottom side (z=-2.7 to -2.5)
+      { x: (-10.8 - 17.2) / 2, z: 2.5 + goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Top side
+      { x: (-10.8 - 17.2) / 2, z: -2.5 - goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Bottom side
       // Right goal (x = 10.8 to 17.2)
-      { x: (10.8 + 17.2) / 2, z: 2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 }, // Top side
-      { x: (10.8 + 17.2) / 2, z: -2.6, halfX: (17.2 - 10.8) / 2, halfZ: 0.1 } // Bottom side
+      { x: (10.8 + 17.2) / 2, z: 2.5 + goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness }, // Top side
+      { x: (10.8 + 17.2) / 2, z: -2.5 - goalNetWallThickness, halfX: (17.2 - 10.8) / 2, halfZ: goalNetWallThickness } // Bottom side
     ]
     goalNetSideWalls.forEach(({ x, z, halfX, halfZ }) => {
       const desc = RAPIER.ColliderDesc.cuboid(halfX, 13, halfZ)
