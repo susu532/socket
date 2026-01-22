@@ -404,6 +404,9 @@ export class SoccerRoom extends Room {
   }
 
   handleInput(client, data) {
+    // Block input during countdown phase
+    if (this.state.gamePhase === 'countdown') return
+    
     const player = this.state.players.get(client.sessionId)
     if (!player) return
 
@@ -534,15 +537,52 @@ export class SoccerRoom extends Room {
     if (keys[0] !== client.sessionId) return
 
     this.resetGame()
-    this.state.gamePhase = 'playing'
+    
+    // Reset all player stats
+    this.state.players.forEach((player) => {
+      player.goals = 0
+      player.assists = 0
+      player.shots = 0
+    })
+    
+    // Start countdown phase
+    this.state.gamePhase = 'countdown'
+    this.state.countdownTimer = 10
 
-    // Start timer
-    if (this.timerInterval) clearInterval(this.timerInterval)
-    this.timerInterval = this.clock.setInterval(() => {
-      if (this.state.gamePhase === 'playing') {
-        this.state.timer--
-        if (this.state.timer <= 0) {
-          this.endGame()
+    // Clear any existing intervals
+    if (this.countdownInterval) {
+      this.countdownInterval.clear()
+      this.countdownInterval = null
+    }
+    if (this.timerInterval) {
+      this.timerInterval.clear()
+      this.timerInterval = null
+    }
+
+    // Start countdown timer
+    this.countdownInterval = this.clock.setInterval(() => {
+      if (this.state.gamePhase === 'countdown') {
+        this.state.countdownTimer--
+        if (this.state.countdownTimer <= 0) {
+          // Countdown finished - start the game!
+          this.state.gamePhase = 'playing'
+          this.broadcast('countdown-go', {})
+          
+          // Clear countdown interval
+          if (this.countdownInterval) {
+            this.countdownInterval.clear()
+            this.countdownInterval = null
+          }
+          
+          // Start game timer
+          this.timerInterval = this.clock.setInterval(() => {
+            if (this.state.gamePhase === 'playing') {
+              this.state.timer--
+              if (this.state.timer <= 0) {
+                this.endGame()
+              }
+            }
+          }, 1000)
         }
       }
     }, 1000)
@@ -887,6 +927,9 @@ export class SoccerRoom extends Room {
 
   updateBots(deltaTime) {
     if (!this.ballBody) return
+    
+    // Block bot movement during countdown phase
+    if (this.state.gamePhase === 'countdown') return
 
     const ballPos = this.ballBody.translation()
     const ballVel = this.ballBody.linvel()
