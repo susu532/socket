@@ -532,61 +532,16 @@ export class SoccerRoom extends Room {
     const keys = [...this.state.players.keys()]
     if (keys[0] !== client.sessionId) return
 
-    // Reset game state and player stats
     this.resetGame()
-    
-    // Reset player individual stats
-    this.state.players.forEach((player) => {
-      player.goals = 0
-      player.assists = 0
-      player.shots = 0
-    })
-    
-    // Start countdown phase (10 seconds)
-    this.state.gamePhase = 'countdown'
-    this.state.countdownTimer = 10
-    
-    // Broadcast countdown start
-    this.broadcast('countdown-start', { seconds: 10 })
+    this.state.gamePhase = 'playing'
 
-    // Clear any existing intervals
-    if (this.timerInterval) {
-      this.timerInterval.clear()
-      this.timerInterval = null
-    }
-    if (this.countdownInterval) {
-      this.countdownInterval.clear()
-      this.countdownInterval = null
-    }
-
-    // Countdown interval
-    this.countdownInterval = this.clock.setInterval(() => {
-      if (this.state.gamePhase === 'countdown') {
-        this.state.countdownTimer--
-        
-        // Broadcast each tick for audio sync
-        this.broadcast('countdown-tick', { seconds: this.state.countdownTimer })
-        
-        if (this.state.countdownTimer <= 0) {
-          // Stop countdown interval
-          if (this.countdownInterval) {
-            this.countdownInterval.clear()
-            this.countdownInterval = null
-          }
-          
-          // Transition to playing
-          this.state.gamePhase = 'playing'
-          this.broadcast('countdown-go', {})
-          
-          // Start game timer
-          this.timerInterval = this.clock.setInterval(() => {
-            if (this.state.gamePhase === 'playing') {
-              this.state.timer--
-              if (this.state.timer <= 0) {
-                this.endGame()
-              }
-            }
-          }, 1000)
+    // Start timer
+    if (this.timerInterval) clearInterval(this.timerInterval)
+    this.timerInterval = this.clock.setInterval(() => {
+      if (this.state.gamePhase === 'playing') {
+        this.state.timer--
+        if (this.state.timer <= 0) {
+          this.endGame()
         }
       }
     }, 1000)
@@ -696,10 +651,6 @@ export class SoccerRoom extends Room {
         const jumpRequestId = input.jumpRequestId || 0
         const rotY = input.rotY || 0
 
-        // FREEZE PLAYERS DURING COUNTDOWN
-        // Players can look around but not move
-        const isCountdown = this.state.gamePhase === 'countdown'
-
         // Handle forced reset
         if (player.resetPosition) {
           const spawnX = player.team === 'red' ? -6 : 6
@@ -732,18 +683,14 @@ export class SoccerRoom extends Room {
       player.vx = player.vx || 0
       player.vz = player.vz || 0
       
-      // During countdown, force zero movement
-      const effectiveX = isCountdown ? 0 : x
-      const effectiveZ = isCountdown ? 0 : z
-      
-      if (effectiveX === 0 && effectiveZ === 0) {
+      if (x === 0 && z === 0) {
         // Instant stop to prevent sliding
         player.vx = 0
         player.vz = 0
       } else {
         const smoothing = PHYSICS.VELOCITY_SMOOTHING
-        player.vx = player.vx + (effectiveX * speed - player.vx) * smoothing
-        player.vz = player.vz + (effectiveZ * speed - player.vz) * smoothing
+        player.vx = player.vx + (x * speed - player.vx) * smoothing
+        player.vz = player.vz + (z * speed - player.vz) * smoothing
       }
 
 
@@ -757,8 +704,8 @@ export class SoccerRoom extends Room {
         player.jumpCount = 0
       }
 
-      // Jump Request ID Logic: Only jump if we see a NEW request ID (and not during countdown)
-      if (!isCountdown && jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
+      // Jump Request ID Logic: Only jump if we see a NEW request ID
+      if (jumpRequestId > (player.lastProcessedJumpRequestId || 0) && player.jumpCount < PHYSICS.MAX_JUMPS) {
         const jumpForce = PHYSICS.JUMP_FORCE * (player.jumpMult || 1)
         player.vy = player.jumpCount === 0 ? jumpForce : jumpForce * PHYSICS.DOUBLE_JUMP_MULTIPLIER
         player.jumpCount++
@@ -1565,24 +1512,43 @@ export class SoccerRoom extends Room {
     const isPastGoalLine = absX > GOAL_LINE_X
     // Is the ball DEEP in the goal net (past the arena wall)?
     const isDeepInGoal = absX > ARENA_HALF_WIDTH
-    // Is the ball within the goal opening (between the posts)?
+    // Is the ball in the "transition zone" between goal line and arena wall?
+    const isInGoalTransition = isPastGoalLine && !isDeepInGoal
+    // Is the ball within the goal opening (between the posts AND below crossbar)?
     const isInGoalOpening = absZ < GOAL_POST_Z && pos.y < GOAL_HEIGHT && isPastGoalLine
 
-    // === Z AXIS ENFORCEMENT ===
-    if (isDeepInGoal) {
-      // Ball is deep in the goal extension (x > 14.5)
-      // Check if it's actually inside the net width
-      const goalSideLimit = GOAL_POST_Z - ballR
-      
-      if (Math.abs(pos.z) > goalSideLimit) {
-        // Ball is deep in X but OUTSIDE the net in Z.
-        // This means it has penetrated the arena back wall (at x=14.5).
-        // Instead of clamping Z (which sucks it into the net), we clamp X back to the arena.
-        correctedPos.x = (pos.x > 0 ? maxX : -maxX)
-        correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
-        needsCorrection = true
-      } else {
-        // Ball is inside the net width - enforce side walls
+    // === Z AXIS ENFORCEMENT (Goal Net Side Walls) ===
+    // The goal net side walls form a "funnel" from the arena to the goal
+    // Once past the goal line (x > 10.8), the Z boundaries tighten to the goal width
+    
+    const goalSideLimit = GOAL_POST_Z - ballR  // ~1.8m from center
+    
+    if (isPastGoalLine) {
+      // Ball is in the goal zone (past goal line at x = 10.8)
+      if (absZ > goalSideLimit) {
+        // Ball is outside the goal width - it has hit the side wall
+        
+        if (isDeepInGoal) {
+          // Ball is deep (x > 14.5) AND outside goal width
+          // This is a corner glitch - push it back into the arena
+          correctedPos.x = (pos.x > 0 ? maxX : -maxX)
+          correctedVel.x = -Math.abs(vel.x) * PHYSICS.WALL_RESTITUTION
+          needsCorrection = true
+        } else {
+          // Ball is in transition zone (10.8 < x < 14.5) AND outside goal width
+          // Clamp Z to the goal side wall
+          if (pos.z > goalSideLimit) {
+            correctedPos.z = goalSideLimit
+            correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+            needsCorrection = true
+          } else if (pos.z < -goalSideLimit) {
+            correctedPos.z = -goalSideLimit
+            correctedVel.z = Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
+            needsCorrection = true
+          }
+        }
+      } else if (isDeepInGoal) {
+        // Ball is deep in goal AND within goal width - enforce the inner side walls
         if (pos.z > goalSideLimit) {
           correctedPos.z = goalSideLimit
           correctedVel.z = -Math.abs(vel.z) * PHYSICS.GOAL_RESTITUTION
@@ -1594,7 +1560,7 @@ export class SoccerRoom extends Room {
         }
       }
     } else {
-      // Ball is in main arena (or corner) - enforce arena walls
+      // Ball is in main arena (x < 10.8) - enforce arena walls
       if (pos.z > maxZ) {
         correctedPos.z = maxZ
         correctedVel.z = -Math.abs(vel.z) * PHYSICS.WALL_RESTITUTION
