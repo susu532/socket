@@ -34,7 +34,7 @@ export const PHYSICS = {
   // Wall Dimensions
   WALL_HEIGHT: 10,
   WALL_THICKNESS: 2,
-  GOAL_NET_WALL_THICKNESS: 1.0,  // Double thickness (was 0.5)
+  GOAL_NET_WALL_THICKNESS: 1.0,  // Thick goal net side walls (was 0.1)
   
   // Mechanics
   KICK_RANGE: 3.0,
@@ -112,8 +112,8 @@ export const PHYSICS = {
 
   // Running Collision Enhancement
   PLAYER_BALL_RESTITUTION: 0.85,       // Low bounce for ball stability on player head
-  PLAYER_BALL_VELOCITY_TRANSFER: 0.7,  // How much player momentum transfers to ball
-  PLAYER_BALL_IMPULSE_MIN: 8,          // Minimum impulse to prevent dead touches
+  PLAYER_BALL_VELOCITY_TRANSFER: 0.65, // Tuned: less player momentum to ball for better control
+  PLAYER_BALL_IMPULSE_MIN: 5,          // Tuned: lower min for softer touches
   PLAYER_BALL_APPROACH_BOOST: 1.4,     // Boost factor when approaching head-on
   RUNNING_COLLISION_SNAP: 0.9,         // Instant visual snap for running collisions
   COLLISION_VELOCITY_THRESHOLD: 3,     // Speed threshold for enhanced response
@@ -125,8 +125,8 @@ export const PHYSICS = {
   BALL_STABILITY_IMPULSE_CAP: 2.0,         // Max impulse when in stability mode
 
   // Collision Lift
-  COLLISION_LIFT: 8.0,                     // Upwards lift when running into ball
-  COLLISION_LIFT_GIANT: 5.0,              // Upwards lift for giant players
+  COLLISION_LIFT: 5.0,                     // Tuned: less upwards lift for grounded feel
+  COLLISION_LIFT_GIANT: 3.0,              // Tuned: proportional reduction for giant
 
   // Ball Prediction Engine - Lookahead Collision
   LOOKAHEAD_FRAMES: 8,                     // Frames to predict ahead
