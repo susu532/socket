@@ -14,22 +14,22 @@ export const PHYSICS = {
   MAX_JUMPS: 2,
   GROUND_Y: 0.1,
   GROUND_CHECK_EPSILON: 0.05,
-  PLAYER_RADIUS: 0.8,
+  PLAYER_RADIUS: 0.99,
   PLAYER_HEIGHT: 0.8,
   
   // Ball
   BALL_RADIUS: 0.8,
   BALL_MASS: 3.0,
-  BALL_RESTITUTION: 0.75,
+  BALL_RESTITUTION: 0.2,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
   MAX_BALL_VELOCITY: 60, // Cap to prevent tunneling/ejection
   
   // Restitution
-  GROUND_RESTITUTION: 0.3,
-  WALL_RESTITUTION: 0.3,
+  GROUND_RESTITUTION: 0.8,
+  WALL_RESTITUTION: 0.8,
   GOAL_RESTITUTION: 0.8,  // Increased for stronger net bounce
-  POST_RESTITUTION: 0.3,
+  POST_RESTITUTION: 0.8,
   
   // Wall Dimensions
   WALL_HEIGHT: 10,
