@@ -322,8 +322,6 @@ export class SoccerRoom extends Room {
   }
 
   onJoin(client, options) {
-    console.log(`Player ${client.sessionId} joined`)
-
     if (this.emptyDisposeTimeout) {
       try {
         this.emptyDisposeTimeout.clear()
@@ -362,8 +360,6 @@ export class SoccerRoom extends Room {
   }
 
   onLeave(client, consented) {
-    console.log(`Player ${client.sessionId} left`)
-
     // Remove physics body
     const body = this.playerBodies.get(client.sessionId)
     if (body) {
@@ -1550,7 +1546,6 @@ export class SoccerRoom extends Room {
 
 
   onDispose() {
-    console.log('SoccerRoom disposed')
     if (this.timerInterval) this.timerInterval.clear()
     if (this.powerUpInterval) this.powerUpInterval.clear()
   }

@@ -20,14 +20,14 @@ export const PHYSICS = {
   // Ball
   BALL_RADIUS: 0.8,
   BALL_MASS: 3.0,
-  BALL_RESTITUTION: 0.2,
+  BALL_RESTITUTION: 0.0,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
   MAX_BALL_VELOCITY: 60, // Cap to prevent tunneling/ejection
   
   // Restitution
-  GROUND_RESTITUTION: 0.8,
-  WALL_RESTITUTION: 0.8,
+  GROUND_RESTITUTION: 0.99,
+  WALL_RESTITUTION: 0.4,
   GOAL_RESTITUTION: 0.8,  // Increased for stronger net bounce
   POST_RESTITUTION: 0.8,
   
