@@ -1295,20 +1295,54 @@ export class SoccerRoom extends Room {
       if (!body) return
 
       const playerPos = body.translation()
-      const playerRadius = player.giant ? 2.0 : PHYSICS.PLAYER_RADIUS
-      const combinedRadius = ballRadius + playerRadius
-
-      const dx = ballPos.x - playerPos.x
-      const dy = ballPos.y - playerPos.y
-      const dz = ballPos.z - playerPos.z
-      const distSq = dx * dx + dy * dy + dz * dz
+      
+      // === GIANT MODE CAPSULE COLLISION ===
+      // Use capsule for giant players, sphere for normal
+      let dist, nx, ny, nz, combinedRadius
+      
+      if (player.giant) {
+        // Capsule collision: vertical cylinder with hemispherical caps
+        const capsuleHalfHeight = PHYSICS.GIANT_CAPSULE_HALF_HEIGHT
+        const capsuleRadius = PHYSICS.GIANT_CAPSULE_RADIUS
+        
+        // Find closest point on capsule axis
+        const minY = playerPos.y
+        const maxY = playerPos.y + capsuleHalfHeight * 2
+        const closestY = Math.max(minY, Math.min(maxY, ballPos.y))
+        
+        // Distance from ball to closest point on axis
+        const dx = ballPos.x - playerPos.x
+        const dz = ballPos.z - playerPos.z
+        const dy = ballPos.y - closestY
+        
+        const distToAxis = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        dist = Math.max(0, distToAxis - capsuleRadius)
+        combinedRadius = ballRadius // Capsule already accounts for player size
+        
+        // Normal direction
+        const invD = 1 / (distToAxis || 0.1)
+        nx = dx * invD
+        ny = dy * invD
+        nz = dz * invD
+      } else {
+        // Sphere collision for normal mode
+        const playerRadius = PHYSICS.PLAYER_RADIUS
+        combinedRadius = ballRadius + playerRadius
+        
+        const dx = ballPos.x - playerPos.x
+        const dy = ballPos.y - playerPos.y
+        const dz = ballPos.z - playerPos.z
+        const distSq = dx * dx + dy * dy + dz * dz
+        dist = Math.sqrt(distSq)
+        
+        const invD = 1 / (dist || 0.1)
+        nx = dx * invD
+        ny = dy * invD
+        nz = dz * invD
+      }
 
       // Check for collision
-      if (distSq < combinedRadius * combinedRadius) {
-        const dist = Math.sqrt(distSq)
-        const nx = dx / (dist || 0.1)
-        const ny = dy / (dist || 0.1)
-        const nz = dz / (dist || 0.1)
+      if (dist < combinedRadius) {
 
         // Relative velocity
         const relVx = (player.vx || 0) - ballVel.x

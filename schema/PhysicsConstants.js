@@ -152,4 +152,15 @@ export const PHYSICS = {
   // Ball Prediction Engine - Input Prediction
   INPUT_LOOKAHEAD_FRAMES: 3,               // Frames of input prediction lookahead
   INPUT_CONFIDENCE_DECAY: 0.8,             // Per-frame input confidence decay
+
+  // Adaptive Impulse Sync (Ping-based blend factor)
+  IMPULSE_SYNC_MIN_BLEND: 0.15,             // Low ping: trust client more (85% client)
+  IMPULSE_SYNC_MAX_BLEND: 0.6,              // High ping: trust server more (40% client)
+  IMPULSE_SYNC_PING_THRESHOLD: 100,         // Ping threshold for max blend
+  IMPULSE_SYNC_CONFIDENCE_WEIGHT: 0.3,      // Weight for collision confidence factor
+
+  // Giant Mode Capsule
+  GIANT_CAPSULE_RADIUS: 1.5,                // Capsule cylinder radius
+  GIANT_CAPSULE_HALF_HEIGHT: 2.0,           // Half height of capsule cylinder
+  GIANT_SCALE: 5,                           // Scale multiplier for giant mode
 }
