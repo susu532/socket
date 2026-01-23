@@ -126,5 +126,30 @@ export const PHYSICS = {
 
   // Collision Lift
   COLLISION_LIFT: 8.0,                     // Upwards lift when running into ball
-  COLLISION_LIFT_GIANT: 10.0,               // Upwards lift for giant players
+  COLLISION_LIFT_GIANT: 5.0,              // Upwards lift for giant players
+
+  // Ball Prediction Engine - Lookahead Collision
+  LOOKAHEAD_FRAMES: 8,                     // Frames to predict ahead
+  LOOKAHEAD_MAX_TIME: 0.133,               // ~8 frames at 60Hz
+  TTC_THRESHOLD: 0.1,                      // Time-to-collision trigger (100ms)
+  TTC_PREEMPTIVE_FRAMES: 3,                // Frames before collision to start response
+  
+  // Ball Prediction Engine - Confidence Scoring
+  PREDICTION_CONFIDENCE_MIN: 0.3,          // Minimum confidence to apply prediction
+  PREDICTION_CONFIDENCE_DECAY: 0.85,       // Per-frame confidence decay
+  PREDICTION_CONFIDENCE_BOOST: 1.5,        // Boost on confirmed collision
+  
+  // Ball Prediction Engine - Trajectory
+  TRAJECTORY_SPLINE_TENSION: 0.5,          // Catmull-Rom spline tension
+  TRAJECTORY_SAMPLES: 16,                  // Points per prediction arc
+  
+  // Ball Prediction Engine - Rollback
+  ROLLBACK_BUFFER_SIZE: 12,                // Frames to store for rollback
+  ROLLBACK_POS_THRESHOLD: 0.5,             // Position diff to trigger rollback
+  ROLLBACK_VEL_THRESHOLD: 5,               // Velocity diff to trigger rollback
+  ROLLBACK_BLEND_FRAMES: 4,                // Frames to blend correction
+  
+  // Ball Prediction Engine - Input Prediction
+  INPUT_LOOKAHEAD_FRAMES: 3,               // Frames of input prediction lookahead
+  INPUT_CONFIDENCE_DECAY: 0.8,             // Per-frame input confidence decay
 }
