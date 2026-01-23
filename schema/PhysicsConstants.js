@@ -14,22 +14,22 @@ export const PHYSICS = {
   MAX_JUMPS: 2,
   GROUND_Y: 0.1,
   GROUND_CHECK_EPSILON: 0.05,
-  PLAYER_RADIUS: 0.4,
+  PLAYER_RADIUS: 0.8,
   PLAYER_HEIGHT: 0.8,
   
   // Ball
   BALL_RADIUS: 0.8,
   BALL_MASS: 3.0,
-  BALL_RESTITUTION: 0.0,
+  BALL_RESTITUTION: 0.75,
   BALL_LINEAR_DAMPING: 1.5,
   BALL_ANGULAR_DAMPING: 1.5,
   MAX_BALL_VELOCITY: 60, // Cap to prevent tunneling/ejection
   
   // Restitution
-  GROUND_RESTITUTION: 0.99,
-  WALL_RESTITUTION: 0.4,
+  GROUND_RESTITUTION: 0.6,
+  WALL_RESTITUTION: 0.3,
   GOAL_RESTITUTION: 0.8,  // Increased for stronger net bounce
-  POST_RESTITUTION: 0.8,
+  POST_RESTITUTION: 0.3,
   
   // Wall Dimensions
   WALL_HEIGHT: 10,
@@ -152,15 +152,4 @@ export const PHYSICS = {
   // Ball Prediction Engine - Input Prediction
   INPUT_LOOKAHEAD_FRAMES: 3,               // Frames of input prediction lookahead
   INPUT_CONFIDENCE_DECAY: 0.8,             // Per-frame input confidence decay
-
-  // Adaptive Impulse Sync (Ping-based blend factor)
-  IMPULSE_SYNC_MIN_BLEND: 0.15,             // Low ping: trust client more (85% client)
-  IMPULSE_SYNC_MAX_BLEND: 0.6,              // High ping: trust server more (40% client)
-  IMPULSE_SYNC_PING_THRESHOLD: 100,         // Ping threshold for max blend
-  IMPULSE_SYNC_CONFIDENCE_WEIGHT: 0.3,      // Weight for collision confidence factor
-
-  // Giant Mode Capsule
-  GIANT_CAPSULE_RADIUS: 1.5,                // Capsule cylinder radius
-  GIANT_CAPSULE_HALF_HEIGHT: 2.0,           // Half height of capsule cylinder
-  GIANT_SCALE: 5,                           // Scale multiplier for giant mode
 }
