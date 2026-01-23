@@ -26,7 +26,7 @@ export const PHYSICS = {
   MAX_BALL_VELOCITY: 60, // Cap to prevent tunneling/ejection
   
   // Restitution
-  GROUND_RESTITUTION: 0.6,
+  GROUND_RESTITUTION: 0.3,
   WALL_RESTITUTION: 0.3,
   GOAL_RESTITUTION: 0.8,  // Increased for stronger net bounce
   POST_RESTITUTION: 0.3,
