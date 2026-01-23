@@ -34,7 +34,7 @@ PLAYER_RADIUS: 1.2,
   // Wall Dimensions
   WALL_HEIGHT: 10,
   WALL_THICKNESS: 2,
-  GOAL_NET_WALL_THICKNESS: 1.0,  // Thick goal net side walls (was 0.1)
+  GOAL_NET_WALL_THICKNESS: 1.5,  // Thick goal net side walls (was 0.1)
   
   // Mechanics
   KICK_RANGE: 3.0,
