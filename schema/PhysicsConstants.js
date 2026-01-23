@@ -14,7 +14,7 @@ export const PHYSICS = {
   MAX_JUMPS: 2,
   GROUND_Y: 0.1,
   GROUND_CHECK_EPSILON: 0.05,
-  PLAYER_RADIUS: 0.8,
+  PLAYER_RADIUS: 0.4,
   PLAYER_HEIGHT: 0.8,
   
   // Ball
