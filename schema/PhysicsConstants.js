@@ -1,3 +1,11 @@
+/**
+ * OmniPitch 3D Soccer Experience
+ * Copyright (c) 2026 OmniPitch Games. All Rights Reserved.
+ *
+ * This file is proprietary and confidential.
+ * Unauthorized copying, transfer, or use is strictly prohibited.
+ */
+
 // Shared physics constants for client and server consistency
 export const PHYSICS = {
   TICK_RATE: 60,

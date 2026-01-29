@@ -1,4 +1,12 @@
 /**
+ * OmniPitch 3D Soccer Experience
+ * Copyright (c) 2026 OmniPitch Games. All Rights Reserved.
+ *
+ * This file is proprietary and confidential.
+ * Unauthorized copying, transfer, or use is strictly prohibited.
+ */
+
+/**
  * GoalNetBoundaryEnforcer.js
  * 
  * Manual Boundary Enforcement Zone Detection and Smart Clamping
